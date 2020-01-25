@@ -598,8 +598,51 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    //LOGGER.log("Réception d'une trame avec trop de latence");
    for(let i = 0; i < conf.TX.VITESSES.length; i++)
     tx.vitesses[i] = 0;
-  } else
-   serial.write(data.data);
+	} else {
+		serial.write(data.data);
+ 
+		// Me
+		 try {
+			 i2c.i2cWrite(0x12, data.data.length, data.data, function(err, bytesWritten, bufferWrite) {
+				 //LOGGER.log('Write err: ' + err);
+				 //LOGGER.log('Write byte length: ' + bytesWritten);
+ 
+ 
+				 if(hard.DEVTELEMETRIE) {
+					 try {
+						 var buff = Buffer.from(rx.arrayBuffer);
+						 i2c.i2cRead(0x12, buff.length, buff, function(err, bytesRead, bufferRead) {
+ 
+							 for (var i = 0; i < bufferRead.length; i++) {
+								 rx.bytes[i] = bufferRead[i];
+							 }
+ 
+							 //LOGGER.log('Read err: ' + err);
+							 //LOGGER.log('Read byte length: ' + bytesWritten);
+							 //LOGGER.log('Read val16[0]: ' + rx.valeursUint16[0] + ', val16[1]: ' + rx.valeursUint16[1]);
+ 
+							 CONF.SERVEURS.forEach(function(serveur) {
+								 if(serveurCourant && serveur != serveurCourant)
+									 return;
+ 
+								 sockets[serveur].emit("serveurrobotrx", {
+									 timestamp: Date.now(),
+									 data: rx.arrayBuffer
+								 });
+							 });
+ 
+						 });
+					 } catch(err) {
+						LOGGER.log('Fail read: ' + err);
+					 }
+				 }
+			 });
+		 }
+		 catch(err) {
+			LOGGER.log('Fail write: ' + err);
+		 }
+ 
+	 }
 
   let camera = tx.choixCameras[0];
   if(camera != oldCamera) {
