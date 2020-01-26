@@ -110,6 +110,7 @@ let conf;
 let hard;
 let tx;
 let rx;
+let bat;
 let oldCamera;
 let confVideo;
 let cmdDiffusion;
@@ -380,6 +381,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
    tx = new TRAME.Tx(conf.TX);
    rx = new TRAME.Rx(conf.TX, conf.RX);
+   bat = [0, 0];
 
    for(let i = 0; i < conf.TX.POSITIONS.length; i++)
     oldPositions[i] = tx.positions[i] + 1;
@@ -486,45 +488,20 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    }
 
     // Me
-    if(hard.DEVTELEMETRIE) {
-      var i2CReadPromises = 0;
-      setInterval(function() {
-        var buff = Buffer.from(rx.arrayBuffer);
-
-        if (i2CReadPromises <= 0) {
-          i2CReadPromises++;
-          i2c.promisifiedBus().i2cRead(0x12, buff.length, buff).then(function(bytesRead, bufferRead) {
-
-            rx.arrayBuffer = bufferRead;
-            // for (var i = 0; i < bufferRead.length; i++) {
-            //   rx.bytes[i] = bufferRead[i];
-            // }
-
-            //LOGGER.local('Read byte length: ' + bytesWritten);
-            //LOGGER.local('Read val16[0]: ' + rx.valeursUint16[0] + ', val16[1]: ' + rx.valeursUint16[1]);
-
-            CONF.SERVEURS.forEach(function(serveur) {
-              if(serveurCourant && serveur != serveurCourant)
-                return;
-
-              sockets[serveur].emit("serveurrobotrx", {
-                timestamp: Date.now(),
-                data: rx.arrayBuffer
-              });
-            });
-
-          }).catch(function(err) {
-            LOGGER.local('Fail to read data from slave: ' + err);
-          }).finally(function() {
-            i2CReadPromises--;
-          });
-        }
-        if (i2CReadPromises > 1) {
-          LOGGER.local('I2C read promises: ' + i2CReadPromises);
-        }
-
-      }, 25);
-    }
+    var buff = Buffer.alloc(4);
+    
+    setInterval(function() {
+      i2c.promisifiedBus().i2cRead(0x12, buff.length, buff).then(function(result) {
+        bat[0] = result.buffer.readUInt16LE();
+        bat[1] = result.buffer.readUInt16LE(2);
+        
+        //LOGGER.local('1 Read bat[0]: ' + bat[0] + ', bat[1]: ' + bat[1]);
+      }).catch(function(err) {
+        LOGGER.local('Fail to read data from slave: ' + err);
+      }).finally(function() {
+        
+      });
+    }, 15000);
 
   });
  }
@@ -710,6 +687,9 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    for(let i = 0; i < conf.TX.VITESSES.length; i++)
     rx.vitesses[i] = tx.vitesses[i];
    rx.interrupteurs[0] = tx.interrupteurs[0];
+   
+   rx.valeursUint16[0] = bat[0];
+   rx.valeursUint16[1] = bat[1];
 
    sockets[serveur].emit("serveurrobotrx", {
     timestamp: now,
