@@ -4,7 +4,7 @@
   "description": "Raspberry PI robot client for Vigibot.com",
   "main": "clientrobotpi.js",
   "dependencies": {
-    "i2c-bus": "^4.0.10",
+    "i2c-bus": "^5.1.0",
     "pca9685": "^4.0.3",
     "pigpio": "^1.2.3",
     "serialport": "^8.0.5",

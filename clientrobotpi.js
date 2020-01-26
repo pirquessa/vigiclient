@@ -484,6 +484,48 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      init = true;
     });
    }
+
+    // Me
+    if(hard.DEVTELEMETRIE) {
+      var i2CReadPromises = 0;
+      setInterval(function() {
+        var buff = Buffer.from(rx.arrayBuffer);
+
+        if (i2CReadPromises <= 0) {
+          i2CReadPromises++;
+          i2c.promisifiedBus().i2cRead(0x12, buff.length, buff).then(function(bytesRead, bufferRead) {
+
+            rx.arrayBuffer = bufferRead;
+            // for (var i = 0; i < bufferRead.length; i++) {
+            //   rx.bytes[i] = bufferRead[i];
+            // }
+
+            //LOGGER.local('Read byte length: ' + bytesWritten);
+            //LOGGER.local('Read val16[0]: ' + rx.valeursUint16[0] + ', val16[1]: ' + rx.valeursUint16[1]);
+
+            CONF.SERVEURS.forEach(function(serveur) {
+              if(serveurCourant && serveur != serveurCourant)
+                return;
+
+              sockets[serveur].emit("serveurrobotrx", {
+                timestamp: Date.now(),
+                data: rx.arrayBuffer
+              });
+            });
+
+          }).catch(function(err) {
+            LOGGER.local('Fail to read data from slave: ' + err);
+          }).finally(function() {
+            i2CReadPromises--;
+          });
+        }
+        if (i2CReadPromises > 1) {
+          LOGGER.local('I2C read promises: ' + i2CReadPromises);
+        }
+
+      }, 25);
+    }
+
   });
  }
 
@@ -567,6 +609,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   });
  });
 
+
+ var i2CWritePromises = 0;
  sockets[serveur].on("clientsrobottx", function(data) {
   if(serveur != serveurCourant)
    return;
@@ -601,48 +645,19 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 	} else {
 		serial.write(data.data);
  
-		// Me
-		 try {
-			 i2c.i2cWrite(0x12, data.data.length, data.data, function(err, bytesWritten, bufferWrite) {
-				 //LOGGER.log('Write err: ' + err);
-				 //LOGGER.log('Write byte length: ' + bytesWritten);
- 
- 
-				 if(hard.DEVTELEMETRIE) {
-					 try {
-						 var buff = Buffer.from(rx.arrayBuffer);
-						 i2c.i2cRead(0x12, buff.length, buff, function(err, bytesRead, bufferRead) {
- 
-							 for (var i = 0; i < bufferRead.length; i++) {
-								 rx.bytes[i] = bufferRead[i];
-							 }
- 
-							 //LOGGER.log('Read err: ' + err);
-							 //LOGGER.log('Read byte length: ' + bytesWritten);
-							 //LOGGER.log('Read val16[0]: ' + rx.valeursUint16[0] + ', val16[1]: ' + rx.valeursUint16[1]);
- 
-							 CONF.SERVEURS.forEach(function(serveur) {
-								 if(serveurCourant && serveur != serveurCourant)
-									 return;
- 
-								 sockets[serveur].emit("serveurrobotrx", {
-									 timestamp: Date.now(),
-									 data: rx.arrayBuffer
-								 });
-							 });
- 
-						 });
-					 } catch(err) {
-						LOGGER.log('Fail read: ' + err);
-					 }
-				 }
-			 });
-		 }
-		 catch(err) {
-			LOGGER.log('Fail write: ' + err);
-		 }
- 
-	 }
+    // Me
+    if (i2CWritePromises <= 0) {
+      i2CWritePromises++;
+      i2c.promisifiedBus().i2cWrite(0x12, data.data.length, data.data).catch(function(err) {
+        LOGGER.local('Fail to send data to slave: ' + err);
+      }).finally(function() {
+        i2CWritePromises--;
+      });
+    }
+    if (i2CWritePromises > 1) {
+      LOGGER.local('I2C write promises: ' + i2CPromises);
+    }
+	}
 
   let camera = tx.choixCameras[0];
   if(camera != oldCamera) {
