@@ -12,6 +12,12 @@ trace() {
  echo "$(date "+%d/%m/%Y %H:%M:%S") $1"
 }
 
+trace "Start the update-release script"
+npm run update-release
+
+
+: '
+
 check() {
  before=$(date -r $1/$2 +%s || echo 0)
  wget $BASEURL/$2 -P $1 -N > /dev/null 2>&1
@@ -84,7 +90,7 @@ then
   mv node_modules.old node_modules && {
    trace "Rollback"
   } || {
-   trace "Can't rollback"
+   trace "Cant rollback"
   }
  }
 fi
@@ -99,3 +105,4 @@ then
  trace "Restarting vigiclient"
  systemctl restart vigiclient
 fi
+'
