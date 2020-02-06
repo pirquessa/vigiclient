@@ -34,8 +34,8 @@ function copyFolder(originPath, destinationPath, exceptionList) {
 		let curPath = originPath + path.sep + file;
 		let desPath = destinationPath + path.sep + file;
 		
-		var rootPathSeparator = curPath.indexOf(path.sep);
-		if (rootPathSeparator >= 0 && exceptionList.includes(curPath.substring(rootPathSeparator + 1))) {
+		if (exceptionList.includes(curPath)) {
+			console.log('Ignore: ' + curPath);
 			return;
 		}
 		
@@ -145,23 +145,9 @@ function replaceCurrentProject(originPath, currentProjetPath) {
 
 const repoOwner = 'pirquessa';
 const repoId = 'vigiclient';
-const tempFolderPath = 'tmp';
-const backupFolderPath = 'update.backup';
-const projectFolderPath = '';
-
-// Create a backup
-try {
-	if (fs.existsSync(backupFolderPath)) {
-		console.log('Delete old backup: ' + backupFolderPath);
-		deleteFileOrFolder(backupFolderPath);
-	}
-
-	console.log('Backup current project');
-	copyFolder(projectFolderPath, backupFolderPath, ['docs', 'node_modules', tempFolderPath, backupFolderPath]);
-}
-catch(e) {
-	console.error('Fail to backup current project: ' + e);
-}
+const tempFolderPath = path.resolve('tmp');
+const backupFolderPath = path.resolve('update.backup');
+const projectFolderPath = path.resolve('.' + path.sep);
 
 getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	console.log('Distant version: ' + latestTag.name);
@@ -170,6 +156,20 @@ getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	console.log('Local version: ' + localVersion);
 
 	if (localVersion !== latestTag.name) {
+		// Create a backup
+		try {
+			if (fs.existsSync(backupFolderPath)) {
+				console.log('Delete old backup: ' + backupFolderPath);
+				deleteFileOrFolder(backupFolderPath);
+			}
+
+			console.log('Backup current project');
+			copyFolder(projectFolderPath, backupFolderPath, [path.resolve('update.backup2'), path.resolve('.git'), path.resolve('node_modules'), tempFolderPath, backupFolderPath]);
+		}
+		catch(e) {
+			console.error('Fail to backup current project: ' + e);
+		}
+
 		return downloadAndUnzipTag(latestTag.zipball_url, tempFolderPath).then(function() {
 			return Promise.resolve(true);
 		});
@@ -187,8 +187,11 @@ getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	return;
 }).catch(function (e) {
 	console.error('Fail: ' + e);
-	console.log('Restore backuped project');
-	copyFolder(backupFolderPath, projectFolderPath, []);
+
+	if (fs.existsSync(backupFolderPath)) {
+		console.log('Restore backuped project');
+		copyFolder(backupFolderPath, projectFolderPath, []);
+	}
 }).finally(function() {
 	if (fs.existsSync(tempFolderPath)) {
 		deleteFileOrFolder(tempFolderPath);
