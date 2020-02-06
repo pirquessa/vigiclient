@@ -10,8 +10,11 @@ const PORTTCPVIDEO = 8043;
 const PORTTCPAUDIO = 8044;
 
 const INTERFACEWIFI = "wlan0";
-const FICHIERSTATS = "/proc/net/wireless";
-const STATSRATE = 250;
+const FICHIERWIFI = "/proc/net/wireless";
+const FICHIERTEMPERATURE = "/sys/class/thermal/thermal_zone0/temp";
+const CPURATE = 250;
+const TEMPERATURERATE = 1000;
+const WIFIRATE = 250;
 
 const PROCESSDIFFUSION = "/usr/local/vigiclient/processdiffusion";
 const PROCESSDIFFVIDEO = "/usr/local/vigiclient/processdiffvideo";
@@ -140,6 +143,9 @@ let i2c;
 let gaugeType;
 
 let pca9685Driver = [];
+
+let prevCpus = OS.cpus();
+let nbCpus = prevCpus.length;
 
 if(typeof CONF.CMDDIFFUSION === "undefined")
  CONF.CMDDIFFUSION = CMDDIFFUSION;
@@ -693,8 +699,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
 });
 
-function setPca9685Gpio(pcaId, pin, state) {
- if(state)
+function setPca9685Gpio(pcaId, pin, etat) {
+ if(etat)
   pca9685Driver[pcaId].channelOn(pin);
  else
   pca9685Driver[pcaId].channelOff(pin);
@@ -872,6 +878,54 @@ setInterval(function() {
  }
 }, TXRATE);
 
+setInterval(function() {
+ if(!init)
+  return;
+
+ let currCpus = OS.cpus();
+ let charges = 0;
+ let idles = 0;
+
+ for(let i = 0; i < nbCpus; i++) {
+  let prevCpu = prevCpus[i];
+  let currCpu = currCpus[i];
+
+  charges += currCpu.times.user - prevCpu.times.user;
+  charges += currCpu.times.nice - prevCpu.times.nice;
+  charges += currCpu.times.sys - prevCpu.times.sys;
+  charges += currCpu.times.irq - prevCpu.times.irq;
+  idles += currCpu.times.idle - prevCpu.times.idle;
+ }
+ prevCpus = currCpus;
+
+ rx.setValeur8(0, 100 - Math.trunc(100 * idles / (charges + idles)));
+}, CPURATE);
+
+setInterval(function() {
+ if(!init)
+  return;
+
+ FS.readFile(FICHIERTEMPERATURE, function(err, data) {
+  rx.setValeur8(1, data / 1000);
+ });
+}, TEMPERATURERATE);
+
+setInterval(function() {
+ if(!init)
+  return;
+
+ const STATS = RL.createInterface(FS.createReadStream(FICHIERWIFI));
+
+ STATS.on("line", function(ligne) {
+  ligne = ligne.split(/\s+/);
+
+  if(ligne[1] == INTERFACEWIFI + ":") {
+   rx.setValeur8(2, ligne[3]);
+   rx.setValeur8(3, ligne[4]);
+  }
+ });
+}, WIFIRATE);
+
 function swapWord(word) {
  return (word & 0xff) << 8 | word >> 8;
 }
@@ -916,22 +970,6 @@ switch(gaugeType) {
   }, GAUGERATE);
   break;
 }
-
-setInterval(function() {
- if(!init)
-  return;
-
- const STATS = RL.createInterface(FS.createReadStream(FICHIERSTATS));
-
- STATS.on("line", function(ligne) {
-  ligne = ligne.split(/\s+/);
-
-  if(ligne[1] == INTERFACEWIFI + ":") {
-   rx.setValeur8(0, ligne[3]);
-   rx.setValeur8(1, ligne[4]);
-  }
- });
-}, STATSRATE);
 
 setInterval(function() {
  if(up || !init || hard.DEVTELEMETRIE)
