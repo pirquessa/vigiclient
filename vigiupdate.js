@@ -192,6 +192,8 @@ getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 		console.log('Restore backuped project');
 		copyFolder(backupFolderPath, projectFolderPath, []);
 	}
+}).catch(function (e) {
+	console.error('Fatal fail: ' + e);
 }).finally(function() {
 	if (fs.existsSync(tempFolderPath)) {
 		deleteFileOrFolder(tempFolderPath);
