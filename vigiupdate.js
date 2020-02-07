@@ -67,10 +67,12 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	}
 
 	if (updateDone) {
+		console.log('Post update: npm install');
 		exec('npm install').then((stdout, stderr) => {
 			console.log(`npm install stdout: ${stdout}`);
 			console.error(`npm install stderr: ${stderr}`);
 
+			console.log('Post update: sudo reboot');
 			return exec('sudo reboot');
 		}).then((stdout, stderr) => {
 			console.log(`reboot stdout: ${stdout}`);
