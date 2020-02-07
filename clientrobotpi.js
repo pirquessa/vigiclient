@@ -763,9 +763,9 @@ function computePwm(n, consigne, min, max) {
  let pwm;
  let pwmNeutre = (min + max) / 2 + hard.MOTEURS[n].OFFSET;
 
- if(consigne < -1)
+ if(consigne < -2)
   pwm = map(consigne, -hard.MOTEURS[n].COURSE * 0x8000 / 360, 0, min, pwmNeutre + hard.MOTEURS[n].NEUTREAR);
- else if(consigne > 1)
+ else if(consigne > 2)
   pwm = map(consigne, 0, hard.MOTEURS[n].COURSE * 0x8000 / 360, pwmNeutre + hard.MOTEURS[n].NEUTREAV, max);
  else
   pwm = pwmNeutre;
@@ -784,7 +784,6 @@ function setMotorFrequency(n) {
    break;
  }
 }
-
 
 function setConsigneMoteur(n, rattrape) {
  let moteur = 0;
