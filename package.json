@@ -1,6 +1,6 @@
 {
   "name": "vigiclient",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Raspberry PI robot client for Vigibot.com",
   "main": "clientrobotpi.js",
   "dependencies": {
