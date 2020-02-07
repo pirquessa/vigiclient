@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const util = require('util');
-const exec = util.promisify(require('child_process').exec);
 const updateUtils = require('./utils/update.js');
 
 const repoOwner = 'pirquessa';
@@ -68,17 +66,11 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 
 	if (updateDone) {
 		console.log('Post update: npm install');
-		exec('npm install').then((stdout, stderr) => {
-			console.log(`npm install stdout: ${stdout}`);
-			console.error(`npm install stderr: ${stderr}`);
-
-			console.log('Post update: sudo reboot');
-			return exec('sudo reboot');
-		}).then((stdout, stderr) => {
-			console.log(`reboot stdout: ${stdout}`);
-			console.error(`reboot stderr: ${stderr}`);
+		updateUtils.npmInstall().then(() => {
+			console.log('Post update: restart client');
+			return updateUtils.restartClient();
 		}).catch((e) => {
-			console.error('Fatal fail: ' + e);
+			console.error('Post update fail: ' + e);
 		});
 	}
 });

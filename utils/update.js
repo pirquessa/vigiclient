@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const unzipper = require('unzipper');
+const exec = require('child_process').exec;
 
 module.exports = {
   deleteFileOrFolder: function(originPath) {
@@ -134,5 +135,62 @@ module.exports = {
   
       resolve();
     }.bind(this));
+  },
+
+  npmInstall: function() {
+    return new Promise(function (resolve, reject) {
+      let child = exec('npm install');
+      child.stdout.on('data', function(data) {
+        console.log('stdout: ' + data);
+      });
+      child.stderr.on('data', function(data) {
+        console.log('stderr: ' + data);
+      });
+      child.on('close', function(code) {
+        if (code===0) {
+          return resolve();
+        }
+
+        return reject();
+      });
+    });
+  },
+
+  reboot: function() {
+    return new Promise(function (resolve, reject) {
+      let child = exec('sudo reboot');
+      child.stdout.on('data', function(data) {
+        console.log('stdout: ' + data);
+      });
+      child.stderr.on('data', function(data) {
+        console.log('stderr: ' + data);
+      });
+      child.on('close', function(code) {
+        if (code===0) {
+          return resolve();
+        }
+
+        return reject();
+      });
+    });
+  },
+
+  restartClient: function() {
+    return new Promise(function (resolve, reject) {
+      let child = exec('systemctl restart vigiclient');
+      child.stdout.on('data', function(data) {
+        console.log('stdout: ' + data);
+      });
+      child.stderr.on('data', function(data) {
+        console.log('stderr: ' + data);
+      });
+      child.on('close', function(code) {
+        if (code===0) {
+          return resolve();
+        }
+
+        return reject();
+      });
+    });
   }
 };
