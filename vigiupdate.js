@@ -8,12 +8,15 @@ const tempFolderPath = path.resolve('tmp');
 const backupFolderPath = path.resolve('update.backup');
 const projectFolderPath = path.resolve('.' + path.sep);
 
+const localPackage = require(projectFolderPath + path.sep + 'package.json');
+let newPackage = {};
+
 let updateDone = false;
 
 updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	console.log('Distant version: ' + latestTag.name);
 
-	let localVersion = require('./package.json').version;
+	let localVersion = localPackage.version;
 	console.log('Local version: ' + localVersion);
 
 	if (localVersion !== latestTag.name) {
@@ -32,6 +35,8 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 		}
 
 		return updateUtils.downloadAndUnzipTag(latestTag.zipball_url, tempFolderPath).then(function() {
+			newPackage = require(tempFolderPath + path.sep + 'package.json');
+
 			return true;
 		});
 	}
@@ -65,8 +70,8 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	}
 
 	if (updateDone) {
-		console.log('Post update: npm install');
-		updateUtils.npmInstall().then(() => {
+		let npmUpdatePromise = updateUtils.areDependenciesEquals(localPackage.dependencies, newPackage.dependencies) ? Promise.resolve() : updateUtils.npmInstall();
+		npmUpdatePromise.then(() => {
 			console.log('Post update: restart client');
 			return updateUtils.restartClient();
 		}).catch((e) => {

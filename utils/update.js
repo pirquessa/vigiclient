@@ -137,6 +137,27 @@ module.exports = {
     }.bind(this));
   },
 
+  areDependenciesEquals: function(deps1, deps2) {
+    if ((typeof deps1) !== (typeof deps2)) {
+      return false;
+    }
+
+    var libList1 = Object.keys(deps1);
+    var libList2 = Object.keys(deps2);
+
+    if (libList1.length !== libList2.length) {
+      return false;
+    }
+
+    for (libName in libList1) {
+      if (deps1[libName] !== deps2[libName]) {
+          return false;
+      }
+    }
+
+    return true;
+  },
+
   npmInstall: function() {
     return new Promise(function (resolve, reject) {
       let child = exec('npm install');
