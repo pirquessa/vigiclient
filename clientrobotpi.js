@@ -99,6 +99,9 @@ const SP = require("serialport");
 const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
+const PLUGINS = new (require("./plugins"))(LOGGER, [
+  "./Gentank.js"
+]);
 
 const VERSION = Math.trunc(FS.statSync(__filename).mtimeMs);
 const PROCESSTIME = Date.now();
@@ -115,7 +118,6 @@ let conf;
 let hard;
 let tx;
 let rx;
-let bat
 let confVideo;
 let oldConfVideo;
 let cmdDiffusion;
@@ -419,8 +421,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    rx = new TRAME.Rx(conf.TX, conf.RX);
    rx.sync[1] = FRAME1R;
 
-   bat = [0, 0];
-
    for(let i = 0; i < conf.TX.POSITIONS.length; i++)
     oldPositions[i] = tx.positions[i] + 1;
 
@@ -539,6 +539,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
            CONF.SERVEURS.forEach(function(serveur) {
             if(serveurCourant && serveur != serveurCourant)
              return;
+             
+            PLUGINS.apply('updateRx', [rx]);
 
             sockets[serveur].emit("serveurrobotrx", {
              timestamp: Date.now(),
@@ -556,26 +558,11 @@ CONF.SERVEURS.forEach(function(serveur, index) {
       });
      }
 
+     PLUGINS.apply('init', [i2c]);
+
      init = true;
     });
    }
-
-    // Me
-    var buff = Buffer.alloc(4);
-    
-    setInterval(function() {
-      i2c.promisifiedBus().i2cRead(0x12, buff.length, buff).then(function(result) {
-        bat[0] = result.buffer.readUInt16LE();
-        bat[1] = result.buffer.readUInt16LE(2);
-        
-        //LOGGER.local('1 Read bat[0]: ' + bat[0] + ', bat[1]: ' + bat[1]);
-      }).catch(function(err) {
-        LOGGER.local('Fail to read data from slave: ' + err);
-      }).finally(function() {
-        
-      });
-    }, 15000);
-
   });
  }
 
@@ -624,7 +611,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
  });
 
 
- var i2CWritePromises = 0;
  sockets[serveur].on("clientsrobottx", function(data) {
   if(serveurCourant && serveur != serveurCourant)
    return;
@@ -664,20 +650,9 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    //LOGGER.both("Réception d'une trame avec trop de latence");
    failSafe();
 	} else {
-		serial.write(data.data);
- 
-    // Me
-    if (i2CWritePromises <= 0) {
-      i2CWritePromises++;
-      i2c.promisifiedBus().i2cWrite(0x12, data.data.length, data.data).catch(function(err) {
-        LOGGER.local('Fail to send data to slave: ' + err);
-      }).finally(function() {
-        i2CWritePromises--;
-      });
-    }
-    if (i2CWritePromises > 1) {
-      LOGGER.local('I2C write promises: ' + i2CPromises);
-    }
+  serial.write(data.data);
+  
+  PLUGINS.apply('forwardToSlave', [data.data]);
 	}
 
   confVideo = hard.CAMERAS[tx.choixCameras[0]];
@@ -725,9 +700,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    for(let i = 0; i < conf.TX.VITESSES.length; i++)
     rx.vitesses[i] = tx.vitesses[i];
    rx.interrupteurs[0] = tx.interrupteurs[0];
-   
-   rx.valeursUint16[0] = bat[0];
-   rx.valeursUint16[1] = bat[1];
+
+   PLUGINS.apply('updateRx', [rx]);
 
    sockets[serveur].emit("serveurrobotrx", {
     timestamp: now,
@@ -1014,6 +988,8 @@ setInterval(function() {
   return;
 
  CONF.SERVEURS.forEach(function(serveur) {
+  PLUGINS.apply('updateRx', [rx]);
+
   sockets[serveur].emit("serveurrobotrx", {
    timestamp: Date.now(),
    data: rx.arrayBuffer
