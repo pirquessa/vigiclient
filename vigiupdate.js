@@ -70,6 +70,10 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	}
 
 	if (updateDone) {
+		console.log('Post update: Make vigiupdate.sh executable');
+		fs.chmodSync(projectFolderPath + path.sep + 'vigiupdate.sh', 0o754); 
+
+		console.log('Post update: Update dependencies if needed');
 		let npmUpdatePromise = updateUtils.areDependenciesEquals(localPackage.dependencies, newPackage.dependencies) ? Promise.resolve() : updateUtils.npmInstall();
 		npmUpdatePromise.then(() => {
 			console.log('Post update: restart client');
