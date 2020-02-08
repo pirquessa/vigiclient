@@ -130,7 +130,7 @@ module.exports = {
   },
   
   replaceCurrentProject: function(originPath, currentProjetPath) {
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
       if (!fs.existsSync(currentProjetPath)) {
         reject('Folder ' + currentProjetPath + ' do not exist !');
       }
@@ -143,7 +143,7 @@ module.exports = {
       }
   
       resolve();
-    }.bind(this));
+    });
   },
 
   areDependenciesEquals: function(deps1, deps2) {

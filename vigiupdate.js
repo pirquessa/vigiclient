@@ -13,7 +13,7 @@ let newPackage = {};
 
 let updateDone = false;
 
-updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
+updateUtils.getLatestTagInfos(repoOwner, repoId).then((latestTag) => {
 	console.log('Distant version: ' + latestTag.name);
 
 	let localVersion = localPackage.version;
@@ -44,15 +44,15 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	return false;
 }).then(function (hasUpdated) {
 	if (hasUpdated) {
-		return updateUtils.replaceCurrentProject(tempFolderPath, projectFolderPath);
+		return updateUtils.replaceCurrentProject(tempFolderPath, projectFolderPath).then(() => {
+			console.log('Update done');
+			updateDone = true;
+			return true;
+		});
 	}
 	
-	return Promise.reject('No need to update !');
-}).then(function () {
-	console.log('Update done');
-
-	updateDone = true;
-	return;
+	console.log('No need to update !');
+	return true;
 }).catch(function (e) {
 	console.error('Fail: ' + e);
 
@@ -64,9 +64,8 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 	console.error('Fatal fail: ' + e);
 }).finally(function() {
 	if (fs.existsSync(tempFolderPath)) {
+		console.log('Delete ' + tempFolderPath);
 		updateUtils.deleteFileOrFolder(tempFolderPath);
-
-		console.log(tempFolderPath + ' folder deleted !');
 	}
 
 	if (updateDone) {
