@@ -1,26 +1,25 @@
 # Make your own Vigibot.com raspberry PI robot
 
-## Installation on a clean Raspbian Buster Lite
+## Why this fork ?
 
-### Everything is already done
+1. Main project is quite hard to read, I'm trying to clean it a little bit
+    so it can be extended !
+2. Robots are updated each time a commit is done in main repo. Robots that use this project will be updated based on code release.
+3. Pull request are not very welcome in the main project. Feel free to contribute here :)
 
-- You can directly jump to the "Windows or Linux headless installation" on https://github.com/vigibot/vigimage
+## Versions names
 
-### Prerequisites
+Release names are composed like: X.Y.Z
+ * X: Updated when there is a protocol change. **Update to this release is mandatory.**
+ * Y: Updated when there is a major change in the project. Update to this release is optionnal.
+ * Z: Updated when there is a minor change in the project. Update to this release is optionnal.
 
-- Flash the last Raspbian Buster Lite image: https://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2019-07-12 or https://www.vigibot.com/raspbian/raspbian_lite-2019-07-12
-- Put your "wpa_supplicant.conf" and an empty "ssh" file inside the boot partition
-- Connect to your Raspberry Pi via SSH
-- sudo apt update
-- sudo apt upgrade
-- sudo raspi-config
-- Enable camera and I2C
+## Installation
 
-### Installation
-
-- wget https://www.vigibot.com/vigiclient/install.sh
-- sudo bash install.sh
-- sudo nano /boot/robot.json
-- Change the "Demo" login and the "Default" password to match your own robot account
-- sudo reboot
-- Take a look at the default server https://www.vigibot.com
+1. Follow steps of the [main
+    project](https://github.com/vigibot/vigiclient)
+2. Override with ssh files in /usr/local/vigiclient with the last code release of this project
+3. Use new files:
+	* Install new dependencies: `npm install`
+	* Restart client: `systemctl restart vigiclient`
+  
