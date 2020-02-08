@@ -108,14 +108,25 @@ module.exports = {
   downloadAndUnzipTag: function(archiveUri, tmpFolder) {
     console.log('Download @ ' + archiveUri);
   
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
       // downloadAndFollowRedirect last archive
-      this.downloadAndFollowRedirect(archiveUri).then(function (response) {
+      this.downloadAndFollowRedirect(archiveUri).then((response) => {
         response
           .pipe(unzipper.Extract({ path: tmpFolder })) // Will create tmpFolder if needed
-          .on('close', resolve);
+          .on('close', () => {
+            try {
+              fs.readdirSync(tmpFolder).forEach((tmpSubFolder) => { // Zip contain a sub-folder...
+                this.copyFolder(tmpFolder + path.sep + tmpSubFolder, tmpFolder, []);
+                this.deleteFileOrFolder(tmpFolder + path.sep + tmpSubFolder);
+                resolve();
+              });
+            }
+            catch (e) {
+              reject(e);
+            }
+          });
       }, reject);
-    }.bind(this));
+    });
   },
   
   replaceCurrentProject: function(originPath, currentProjetPath) {
@@ -125,9 +136,7 @@ module.exports = {
       }
       
       try {
-        fs.readdirSync(originPath).forEach(function (projectFolder) { // Zip contain a sub-folder...
-          this.copyFolder(originPath + path.sep + projectFolder, currentProjetPath, []);
-        }.bind(this));
+        this.copyFolder(originPath, currentProjetPath, []);
       }
       catch (e) {
         reject(e);

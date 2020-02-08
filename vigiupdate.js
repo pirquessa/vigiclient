@@ -28,7 +28,7 @@ updateUtils.getLatestTagInfos(repoOwner, repoId).then(function (latestTag) {
 			}
 
 			console.log('Backup current project');
-			updateUtils.copyFolder(projectFolderPath, backupFolderPath, [path.resolve('update.backup2'), path.resolve('.git'), path.resolve('node_modules'), tempFolderPath, backupFolderPath]);
+			updateUtils.copyFolder(projectFolderPath, backupFolderPath, [path.resolve('.git'), path.resolve('.vscode'), path.resolve('node_modules'), tempFolderPath, backupFolderPath]);
 		}
 		catch(e) {
 			console.error('Fail to backup current project: ' + e);
