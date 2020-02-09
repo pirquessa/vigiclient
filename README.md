@@ -2,9 +2,8 @@
 
 ## Why this fork ?
 
-1. Main project is quite hard to read, I'm trying to clean it a little bit
-    so it can be extended !
-2. Robots are updated each time a commit is done in main repo. Robots that use this project will be updated based on code release.
+1. Main project is quite hard to read, I'm trying to clean it a little bit so it can be extended !
+2. Robots using main project are updated each time a commit is done in the repo. Robots that use this project will be updated based on releases.
 3. Pull request are not very welcome in the main project. Feel free to contribute here :)
 
 ## Versions names
@@ -16,10 +15,13 @@ Release names are composed like: X.Y.Z
 
 ## Installation
 
-1. Follow steps of the [main
-    project](https://github.com/vigibot/vigiclient)
-2. Override with ssh files in /usr/local/vigiclient with the last code release of this project
+1. Follow steps of the [main project](https://github.com/vigibot/vigiclient)
+2. Override with ssh files in `/usr/local/vigiclient` with the last [release](https://github.com/pirquessa/vigiclient/releases) of this project
 3. Use new files:
 	* Install new dependencies: `npm install`
 	* Restart client: `systemctl restart vigiclient`
   
+## Customization with plugins
+
+1. Create a plugin in the plugins folder. (Look at `SerialSlave.js` as exemple)
+2. Declare your plugin in clientrobotpi.js. (Add the class file name in the list. Just like for `SerialSlave.js`)
