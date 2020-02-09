@@ -7,7 +7,6 @@ const LOGGER = new (require("./utils/logger.js"))("/var/log/vigiclient.log");
 
 const PORTROBOTS = 8042;
 const PORTTCPVIDEO = 8043;
-const PORTTCPAUDIO = 8044;
 
 const INTERFACEWIFI = "wlan0";
 const FICHIERWIFI = "/proc/net/wireless";
@@ -18,7 +17,6 @@ const WIFIRATE = 250;
 
 const PROCESSDIFFUSION = "/usr/local/vigiclient/processdiffusion";
 const PROCESSDIFFVIDEO = "/usr/local/vigiclient/processdiffvideo";
-const PROCESSDIFFAUDIO = "/usr/local/vigiclient/processdiffaudio";
 
 const CMDINT = RegExp(/^-?\d{1,10}$/);
 
@@ -44,18 +42,6 @@ const CMDDIFFUSION = [
  ]
 ];
 
-const CMDDIFFAUDIO = [
- PROCESSDIFFAUDIO,
- " -loglevel fatal",
- " -f alsa",
- " -ac 1",
- " -i hw:1,0",
- " -ar 16000",
- " -c:a pcm_s16le",
- " -f s16le",
- " tcp://127.0.0.1:PORTTCPAUDIO"
-];
-
 const FRAME0 = "$".charCodeAt();
 const FRAME1S = "S".charCodeAt();
 const FRAME1T = "T".charCodeAt();
@@ -63,8 +49,8 @@ const FRAME1R = "R".charCodeAt();
 
 const UPTIMEOUT = 5000;
 const V4L2 = "/usr/bin/v4l2-ctl";
-const LATENCEFINALARME = 250;
-const LATENCEDEBUTALARME = 500;
+const LATENCEFINALARME = 350;
+const LATENCEDEBUTALARME = 750;
 const BITRATEVIDEOFAIBLE = 100000;
 const TXRATE = 50;
 const BEACONRATE = 10000;
@@ -99,6 +85,7 @@ const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))(LOGGER, [
+ "AudioDiffusion.js",
  //"./SerialSlave.js",
  "./Gentank.js"
 ]);
@@ -121,7 +108,6 @@ let rx;
 let confVideo;
 let oldConfVideo;
 let cmdDiffusion;
-let cmdDiffAudio;
 
 let lastTimestamp = Date.now();
 let latence = 0;
@@ -150,9 +136,6 @@ let nbCpus = prevCpus.length;
 
 if(typeof CONF.CMDDIFFUSION === "undefined")
  CONF.CMDDIFFUSION = CMDDIFFUSION;
-
-if(typeof CONF.CMDDIFFAUDIO === "undefined")
- CONF.CMDDIFFAUDIO = CMDDIFFAUDIO;
 
 CONF.SERVEURS.forEach(function(serveur) {
  sockets[serveur] = IO.connect(serveur, {"connect timeout": 1000, transports: ["websocket"], path: "/" + PORTROBOTS + "/socket.io"});
@@ -277,7 +260,6 @@ function debout(serveur) {
   });
  } else
   diffusion();
- diffAudio();
 
  serveurCourant = serveur;
  up = true;
@@ -317,9 +299,6 @@ function dodo() {
   });
  });
 
- sigterm("DiffAudio", PROCESSDIFFAUDIO, function(code) {
- });
-
  exec("v4l2-ctl", V4L2 + " -c video_bitrate=" + confVideo.BITRATE, function(code) {
  });
 
@@ -336,7 +315,6 @@ function configurationVideo(callback) {
                                                            ).replace(new RegExp("BITRATE", "g"), confVideo.BITRATE
                                                            ).replace("ROTATION", confVideo.ROTATION
                                                            ).replace("PORTTCPVIDEO", PORTTCPVIDEO);
- cmdDiffAudio = CONF.CMDDIFFAUDIO.join("").replace("PORTTCPAUDIO", PORTTCPAUDIO);
 
  LOGGER.both("Initialisation de la configuration Video4Linux");
 
@@ -368,13 +346,6 @@ function diffusion() {
  LOGGER.both("Démarrage du flux de diffusion vidéo H.264");
  exec("Diffusion", cmdDiffusion, function(code) {
   LOGGER.both("Arrêt du flux de diffusion vidéo H.264");
- });
-}
-
-function diffAudio() {
- LOGGER.both("Démarrage du flux de diffusion audio");
- exec("DiffAudio", cmdDiffAudio, function(code) {
-  LOGGER.both("Arrêt du flux de diffusion audio");
  });
 }
 
@@ -509,14 +480,12 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      init = true;
     });
 
-    PLUGINS.on('dataToServer', (data) => {
+    PLUGINS.on('dataToServer', (eventName, data) => {
      CONF.SERVEURS.forEach((serveur) => {
       if(serveurCourant && serveur != serveurCourant)
        return;
 
-      PLUGINS.apply('updateRx', [rx]);
-
-      sockets[serveur].emit("serveurrobotrx", data);
+      sockets[serveur].emit(eventName, data);
      });
     });
    }
@@ -1034,36 +1003,6 @@ NET.createServer(function(socket) {
  });
 
 }).listen(PORTTCPVIDEO);
-
-NET.createServer(function(socket) {
-
- LOGGER.both("Le processus de diffusion audio est connecté sur tcp://127.0.0.1:" + PORTTCPAUDIO);
-
- let array = [];
- let i = 0;
- socket.on("data", function(data) {
-
-  array.push(data);
-  i++;
-
-  if(i == 20) {
-   if(serveurCourant) {
-    sockets[serveurCourant].emit("serveurrobotaudio", {
-     timestamp: Date.now(),
-     data: Buffer.concat(array)
-    });
-   }
-   array = [];
-   i = 0;
-  }
-
- })
-
- socket.on("end", function() {
-  LOGGER.both("Le processus de diffusion audio est déconnecté de tcp://127.0.0.1:" + PORTTCPAUDIO);
- });
-
-}).listen(PORTTCPAUDIO);
 
 process.on("uncaughtException", function(err) {
  let i = 0;

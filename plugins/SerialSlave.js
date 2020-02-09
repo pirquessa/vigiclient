@@ -51,7 +51,7 @@ class SerialSlave extends AbstractPlugin {
                 default:
                   rx.bytes[rxPos++] = data[i];
                   if (rxPos == rx.byteLength) {
-                    this.emit('dataToServer', {
+                    this.emit('dataToServer', 'serveurrobotrx', {
                       timestamp: Date.now(),
                       data: rx.arrayBuffer
                     });
