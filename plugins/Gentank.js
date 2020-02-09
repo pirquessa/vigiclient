@@ -14,6 +14,10 @@ class Gentank extends AbstractPlugin {
     };
 
     this.i2c = null;
+    this.intervals = {
+      read: null,
+      write: null
+    }
     this.lastTxToForward = null;
     this.lastTxForwarded = null;
   }
@@ -21,9 +25,33 @@ class Gentank extends AbstractPlugin {
   init(i2c) {
     this.i2c = i2c;
 
+    this.wakeUp();
+  }
+
+  forwardToSlave(tx) {
+    this.lastTxToForward = tx;
+  }
+
+  updateRx(rx) {
+    rx.valeursUint16[0] = this.bat[0];
+    rx.valeursUint16[1] = this.bat[1];
+  }
+
+  sleep() {
+    this.log('Go to sleep');
+
+    clearInterval(this.intervals.read);
+    this.intervals.read = null;
+    clearInterval(this.intervals.write);
+    this.intervals.write = null;
+  }
+
+  wakeUp() {
+    this.log('Wake up !');
+
     // Read from slave
     var buff = Buffer.alloc(4);
-    setInterval(() => {
+    this.intervals.read = setInterval(() => {
       this.i2c.promisifiedBus().i2cRead(this.arduinoAddress, buff.length, buff).then((result) => {
         this.bat[0] = result.buffer.readUInt16LE();
         this.bat[1] = result.buffer.readUInt16LE(2);
@@ -36,7 +64,7 @@ class Gentank extends AbstractPlugin {
 
     
     // Write to slave
-    setInterval(() => {
+    this.intervals.write = setInterval(() => {
       if (this.lastTxToForward !== null && this.lastTxForwarded !== this.lastTxToForward) {
         this.lastTxForwarded = this.lastTxToForward;
         this.i2c.promisifiedBus().i2cWrite(this.arduinoAddress, this.lastTxToForward.length, this.lastTxToForward).catch((err) => {
@@ -44,15 +72,6 @@ class Gentank extends AbstractPlugin {
         });
       }
     }, this.timers.write);
-  }
-
-  forwardToSlave(tx) {
-    this.lastTxToForward = tx;
-  }
-
-  updateRx(rx) {
-    rx.valeursUint16[0] = this.bat[0];
-    rx.valeursUint16[1] = this.bat[1];
   }
 }
 

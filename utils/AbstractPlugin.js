@@ -13,6 +13,12 @@ class AbstractPlugin {
   // Called to send data to slave (arduino ?)
   forwardToSlave(tx) {}
 
+  // Called when robot need to stop activity
+  sleep() {}
+
+  // Called when robot can go back to activity
+  wakeUp() {}
+
   log(msg) {
     this.logger.local(this.name + ' | ' + msg);
   }

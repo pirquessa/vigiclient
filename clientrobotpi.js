@@ -283,6 +283,8 @@ function debout(serveur) {
 
  serveurCourant = serveur;
  up = true;
+
+ PLUGINS.apply('wakeUp');
 }
 
 function dodo() {
@@ -325,6 +327,8 @@ function dodo() {
 
  serveurCourant = "";
  up = false;
+
+ PLUGINS.apply('sleep');
 }
 
 function configurationVideo(callback) {
