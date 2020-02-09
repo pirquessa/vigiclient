@@ -20,7 +20,11 @@ class AbstractPlugin {
   wakeUp() {}
 
   log(msg) {
-    this.logger.local(this.name + ' | ' + msg);
+    this.logger.local(this.name + ' | DEBUG | ' + msg);
+  }
+
+  error(msg) {
+    this.logger.local(this.name + ' | ERROR | ' + msg);
   }
 }
 
