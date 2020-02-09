@@ -1,4 +1,6 @@
 const AbstractPlugin = require("../utils/AbstractPlugin.js");
+const EXEC = require("child_process").exec;
+const RL = require("readline");
 const NET = require("net");
 
 class AudioDiffusion extends AbstractPlugin {
@@ -47,7 +49,7 @@ class AudioDiffusion extends AbstractPlugin {
 
       });
 
-      socket.on("end", function () {
+      socket.on("end", () => {
         this.log("The audio diffusion process is disconnected from tcp://127.0.0.1:" + this.PORTTCPAUDIO);
       });
 
@@ -57,13 +59,53 @@ class AudioDiffusion extends AbstractPlugin {
   wakeUp() {
     this.log("Start audio diffusion process");
 
-    exec("DiffAudio", this.CMDDIFFAUDIO, function (code) {
-      LOGGER.both("Stop of the audio diffusion process");
+    this.exec("DiffAudio", this.CMDDIFFAUDIO, (code) => {
+      this.log("Stop of the audio diffusion process");
     });
   }
 
   sleep() {
     sigterm("DiffAudio", this.PROCESSDIFFAUDIO, (code) => { });
+  }
+
+  // Move in a generic util class
+  exec(name, command, endCallback) {
+    this.log("Start subProcess " + name);
+    this.log(command);
+    let subProcess = EXEC(command);
+    let stdout = RL.createInterface(subProcess.stdout);
+    let stderr = RL.createInterface(subProcess.stderr);
+    let pid = subProcess.pid;
+    let execTime = Date.now();
+
+    //subProcess.stdout.on("data", function(data) {
+    stdout.on("line", (data) => {
+      this.traces(name + " | " + pid + " | stdout", data);
+    });
+
+    //subProcess.stderr.on("data", function(data) {
+    stderr.on("line", (data) => {
+      this.traces(name + " | " + pid + " | stderr", data);
+    });
+
+    subProcess.on("close", (code) => {
+      let elapsed = Date.now() - execTime;
+
+      this.log("SubProcess " + name + " stops after " + elapsed + " milliseconds with exit code: " + code);
+      endCallback(code);
+    });
+  }
+
+  // Move in a generic util class
+  traces(id, messages) {
+    let tableau = messages.split("\n");
+    if (!tableau[tableau.length - 1]) {
+      tableau.pop();
+    }
+
+    for (let i = 0; i < tableau.length; i++) {
+      this.log(id + " | " + tableau[i]);
+    }
   }
 }
 
