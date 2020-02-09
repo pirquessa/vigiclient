@@ -34,9 +34,7 @@ module.exports = {
   sigterm: function (name, process, endCallback) {
     LOGGER.both("Send signal SIGTERM to process " + name);
     let processkill = EXEC("/usr/bin/pkill -15 -f ^" + process);
-    processkill.on("close", function (code) {
-      endCallback(code);
-    });
+    processkill.on("close", endCallback);
   },
 
   traces: function (id, messages) {
