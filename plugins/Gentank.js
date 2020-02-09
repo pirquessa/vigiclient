@@ -1,8 +1,8 @@
 const AbstractPlugin = require("../utils/AbstractPlugin.js");
 
 class Gentank extends AbstractPlugin {
-  constructor(logger) {
-    super('Gentank', logger);
+  constructor() {
+    super('Gentank');
 
     // Config constants
     this.arduinoAddress = 0x12;

@@ -2,8 +2,8 @@ const AbstractPlugin = require("../utils/AbstractPlugin.js");
 const SP = require("serialport");
 
 class SerialSlave extends AbstractPlugin {
-  constructor(logger) {
-    super('SerialSlave', logger);
+  constructor() {
+    super('SerialSlave');
 
     // Config constants
     this.FRAME0 = "$".charCodeAt();

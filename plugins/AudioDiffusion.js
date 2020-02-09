@@ -4,8 +4,8 @@ const RL = require("readline");
 const NET = require("net");
 
 class AudioDiffusion extends AbstractPlugin {
-  constructor(logger) {
-    super('AudioDiffusion', logger);
+  constructor() {
+    super('AudioDiffusion');
 
     // Config constants
     this.PORTTCPAUDIO = 8044;

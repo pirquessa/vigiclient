@@ -7,6 +7,8 @@ function getTimePrefix(date) {
 		('00' + date.getMilliseconds()).slice(-3);
 }
 
+let singleton = null;
+
 class Logger {
 	constructor(logFile) {
 		this.filePath = logFile;
@@ -33,4 +35,22 @@ class Logger {
 	}
 }
 
-module.exports = Logger;
+module.exports = {
+	init: function(logFile) {
+		if (singleton !== null) {
+			throw Error('Can init only once a singleton !');
+		}
+
+		singleton = new Logger(logFile);
+
+		return singleton;
+	},
+
+	getLogger: function() {
+		if (singleton === null) {
+			throw Error('Init singleton first !');
+		}
+
+		return singleton;
+	}
+};

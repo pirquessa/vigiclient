@@ -1,15 +1,15 @@
 const EventEmitter = require('events');
+const LOGGER = require("./Logger.js").getLogger();
 
 /*
 Event emited:
   - dataToServer: the plugin want to send data back to server
 */
 class AbstractPlugin extends EventEmitter {
-  constructor(name, logger) {
+  constructor(name) {
     super();
 
     this.name = name;
-    this.logger = logger;
   }
 
   // Called on init, the first time server send "clientsrobotconf"
@@ -32,11 +32,11 @@ class AbstractPlugin extends EventEmitter {
   }
 
   log(msg) {
-    this.logger.local(this.name + ' | DEBUG | ' + msg);
+    LOGGER.local(this.name + ' | DEBUG | ' + msg);
   }
 
   error(msg) {
-    this.logger.local(this.name + ' | ERROR | ' + msg);
+    LOGGER.local(this.name + ' | ERROR | ' + msg);
   }
 }
 

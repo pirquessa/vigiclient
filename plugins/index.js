@@ -1,22 +1,23 @@
+const LOGGER = require("../utils/Logger.js").getLogger();
+
 class PluginManager {
-  constructor(logger, pluginPathes) {
-    this.logger = logger;
+  constructor(pluginPathes) {
     this.plugins = [];
 
-    this.logger.local('DEBUG | Will instanciate all plugins:');
+    LOGGER.local('DEBUG | Will instanciate all plugins:');
     pluginPathes.forEach(pluginPath => {
-      this.logger.local('DEBUG | Instanciate plugin: ' + pluginPath);
+      LOGGER.local('DEBUG | Instanciate plugin: ' + pluginPath);
       try {
-        this.plugins.push(new (require(pluginPath))(this.logger));
+        this.plugins.push(new (require(pluginPath))());
       }
       catch(e) {
-        this.logger.local('ERROR | Fail to instanciate plugin ' + pluginPath + ': ' + e);
+        LOGGER.local('ERROR | Fail to instanciate plugin ' + pluginPath + ': ' + e);
       }
     });
   }
 
   apply(funName, args) {
-    //this.logger.local('Apply ' + funName);
+    //LOGGER.local('Apply ' + funName);
 
     let promises = [];
 
@@ -25,7 +26,7 @@ class PluginManager {
         promises.push(plugin[funName].apply(plugin, args));
       }
       catch(e) {
-        this.logger.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name + ': ' + e);
+        LOGGER.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name + ': ' + e);
       }
     });
 

@@ -3,7 +3,7 @@
 const CONF = require("/boot/robot.json");
 
 const TRAME = require("./trame.js");
-const LOGGER = new (require("./utils/logger.js"))("/var/log/vigiclient.log");
+const LOGGER = require("./utils/Logger.js").init("/var/log/vigiclient.log");
 
 const PORTROBOTS = 8042;
 const PORTTCPVIDEO = 8043;
@@ -84,7 +84,7 @@ const SPLIT = require("stream-split");
 const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
-const PLUGINS = new (require("./plugins"))(LOGGER, [
+const PLUGINS = new (require("./plugins"))([
  //"./AudioDiffusion.js",
  //"./SerialSlave.js",
  "./Gentank.js"
