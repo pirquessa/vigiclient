@@ -88,6 +88,7 @@ const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))([
  // "./AudioDiffusion.js",
  // "./SerialSlave.js",
+ "./TextToSpeech.js",
  "./Gentank.js"
 ]);
 
@@ -460,17 +461,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   //LOGGER.both("Erreur de connexion au serveur " + serveur + "/" + PORTROBOTS);
  });
 
- sockets[serveur].on("clientsrobottts", function(data) {
-  FS.writeFile("/tmp/tts.txt", data, function(err) {
-   if(err)
-    LOGGER.both(err);
-    UTILS.exec("eSpeak", "/usr/bin/espeak -v fr -f /tmp/tts.txt --stdout > /tmp/tts.wav", function(code) {
-     UTILS.exec("Aplay", "/usr/bin/aplay -D plughw:" + hard.PLAYBACKDEVICE + " /tmp/tts.wav", function(code) {
-    });
-   });
-  });
- });
-
  sockets[serveur].on("clientsrobotsys", function(data) {
   switch(data) {
    case "exit":
@@ -494,7 +484,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    client: Date.now()
   });
  });
-
 
  sockets[serveur].on("clientsrobottx", function(data) {
   if(serveurCourant && serveur != serveurCourant)
@@ -593,6 +582,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   }
  });
 
+ PLUGINS.apply('registerNewSocket', [sockets[serveur]]);
 });
 
 function setPca9685Gpio(pcaId, pin, etat) {

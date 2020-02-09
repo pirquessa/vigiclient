@@ -17,6 +17,9 @@ class AbstractPlugin extends EventEmitter {
     return Promise.resolve();
   }
 
+  // Called during init to setup event handler on server socket
+  registerNewSocket(serverSocket) {}
+
   // Called before sending "serveurrobotrx" to server
   updateRx(rx) {}
 
