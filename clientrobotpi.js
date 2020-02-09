@@ -95,7 +95,6 @@ const EXEC = require("child_process").exec;
 const RL = require("readline");
 const NET = require("net");
 const SPLIT = require("stream-split");
-const SP = require("serialport");
 const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");

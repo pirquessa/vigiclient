@@ -1,5 +1,5 @@
 const AbstractPlugin = require("../utils/AbstractPlugin.js");
-const CONF = require("/boot/robot.json");
+const SP = require("serialport");
 
 class SerialSlave extends AbstractPlugin {
   constructor(logger) {
