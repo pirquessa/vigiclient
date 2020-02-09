@@ -23,6 +23,8 @@ class TextToSpeech extends AbstractPlugin {
         return;
       }
 
+      this.log('Let\'s talk: ' + data);
+
       FS.writeFile("/tmp/tts.txt", data, (err) => {
         if (err) {
           this.error(err);
@@ -37,4 +39,4 @@ class TextToSpeech extends AbstractPlugin {
   }
 }
 
-module.exports = AudioDiffusion;
+module.exports = TextToSpeech;

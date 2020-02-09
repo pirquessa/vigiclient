@@ -88,7 +88,7 @@ const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))([
  // "./AudioDiffusion.js",
  // "./SerialSlave.js",
- "./TextToSpeech.js",
+ // "./TextToSpeech.js",
  "./Gentank.js"
 ]);
 
