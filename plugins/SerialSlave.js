@@ -12,20 +12,23 @@ class SerialSlave extends AbstractPlugin {
     this.FRAME1R = "R".charCodeAt();
 
     // Attributes
+    this.hardwareConfig = null;
     this.serial = null;
   }
 
   init(config) {
-    this.serial = new SP(config.hard.DEVROBOT, {
-      baudRate: config.hard.DEVDEBIT,
+    this.hardwareConfig = config.hard;
+
+    this.serial = new SP(this.hardwareConfig.DEVROBOT, {
+      baudRate: this.hardwareConfig.DEVDEBIT,
       lock: false
     });
 
     return new Promise((resolve, reject) => {
       this.serial.on("open", () => {
-        this.log("Connected to " + config.hard.DEVROBOT);
+        this.log("Connected to " + this.hardwareConfig.DEVROBOT);
 
-        if (config.hard.DEVTELEMETRIE) {
+        if (this.hardwareConfig.DEVTELEMETRIE) {
           let rxPos = 0;
           this.serial.on("data", function (data) {
             let i = 0;
@@ -72,7 +75,9 @@ class SerialSlave extends AbstractPlugin {
   }
 
   forwardToSlave(type, tx) {
-    this.serial.write(tx);
+    if (this.hardwareConfig.DEVTELECOMMANDE) {
+      this.serial.write(tx);
+    }
   }
 }
 
