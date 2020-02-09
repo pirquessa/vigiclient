@@ -25,7 +25,7 @@ class PluginManager {
         promises.push(plugin[funName].apply(plugin, args));
       }
       catch(e) {
-        this.logger.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name);
+        this.logger.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name + ': ' + e);
       }
     });
 
