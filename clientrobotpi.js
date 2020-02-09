@@ -100,7 +100,8 @@ const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))(LOGGER, [
-  "./Gentank.js"
+ "./SerialSlave.js",
+ "./Gentank.js"
 ]);
 
 const VERSION = Math.trunc(FS.statSync(__filename).mtimeMs);
@@ -139,8 +140,6 @@ let oldBoostVideo = false;
 
 let gpiosMoteurs = [];
 let gpioInterrupteurs = [];
-
-let serial;
 
 let i2c;
 let gaugeType;
@@ -504,67 +503,22 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    }, 100);
 
    if(!init) {
-    serial = new SP(hard.DEVROBOT, {
-     baudRate: hard.DEVDEBIT,
-     lock: false
+    PLUGINS.apply('init', [{
+     i2c: i2c,
+     hard: hard
+    }]).then(() => {
+     init = true;
     });
 
-    serial.on("open", function() {
-     LOGGER.both("Connecté sur " + hard.DEVROBOT);
+    PLUGINS.on('dataToServer', (data) => {
+     CONF.SERVEURS.forEach((serveur) => {
+      if(serveurCourant && serveur != serveurCourant)
+       return;
 
-     if(hard.DEVTELEMETRIE) {
-      let rxPos = 0;
-      serial.on("data", function(data) {
+      PLUGINS.apply('updateRx', [rx]);
 
-       let i = 0;
-       while(i < data.length) {
-
-        switch(rxPos) {
-         case 0:
-          if(data[i] == FRAME0)
-           rxPos++;
-          else
-           LOGGER.both("Premier octet de la trame télémétrique invalide");
-          break;
-
-         case 1:
-          if(data[i] == FRAME1R)
-           rxPos++;
-          else {
-           rxPos = 0;
-           LOGGER.both("Second octet de la trame télémétrique invalide");
-          }
-          break;
-
-         default:
-          rx.bytes[rxPos++] = data[i];
-          if(rxPos == rx.byteLength) {
-
-           CONF.SERVEURS.forEach(function(serveur) {
-            if(serveurCourant && serveur != serveurCourant)
-             return;
-             
-            PLUGINS.apply('updateRx', [rx]);
-
-            sockets[serveur].emit("serveurrobotrx", {
-             timestamp: Date.now(),
-             data: rx.arrayBuffer
-            });
-           });
-
-           rxPos = 0;
-          }
-          break;
-        }
-
-        i++;
-       }
-      });
-     }
-
-     PLUGINS.apply('init', [i2c]);
-
-     init = true;
+      sockets[serveur].emit("serveurrobotrx", data);
+     });
     });
    }
   });
@@ -643,7 +597,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
   if(data.data[1] == FRAME1T) {
    LOGGER.both("Réception d'une trame texte");
-   serial.write(data.data);
+   PLUGINS.apply('forwardToSlave', ['text', data.data]);
    return;
   }
 
@@ -653,11 +607,9 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   if(latence > LATENCEDEBUTALARME) {
    //LOGGER.both("Réception d'une trame avec trop de latence");
    failSafe();
-	} else {
-  serial.write(data.data);
-  
-  PLUGINS.apply('forwardToSlave', [data.data]);
-	}
+  } else {
+   PLUGINS.apply('forwardToSlave', ['data', data.data]);
+  }
 
   confVideo = hard.CAMERAS[tx.choixCameras[0]];
   if(JSON.stringify(confVideo) != JSON.stringify(oldConfVideo)) {

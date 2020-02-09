@@ -18,13 +18,23 @@ class PluginManager {
   apply(funName, args) {
     //this.logger.local('Apply ' + funName);
 
+    let promises = [];
+
     this.plugins.forEach(plugin => {
       try {
-        plugin[funName].apply(plugin, args);
+        promises.push(plugin[funName].apply(plugin, args));
       }
       catch(e) {
         this.logger.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name);
       }
+    });
+
+    return Promise.all(promises);
+  }
+
+  on(eventName, listener) {
+    this.plugins.forEach(plugin => {
+      plugin.on(eventName, listener);
     });
   }
 }

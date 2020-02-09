@@ -1,23 +1,33 @@
-class AbstractPlugin {
+const EventEmitter = require('events');
+
+/*
+Event emited:
+  - dataToServer: the plugin want to send data back to server
+*/
+class AbstractPlugin extends EventEmitter {
   constructor(name, logger) {
     this.name = name;
     this.logger = logger;
   }
 
   // Called on init, the first time server send "clientsrobotconf"
-  init(i2c) {}
+  init(config) {
+    return Promise.resolve();
+  }
 
   // Called before sending "serveurrobotrx" to server
   updateRx(rx) {}
 
   // Called to send data to slave (arduino ?)
-  forwardToSlave(tx) {}
+  forwardToSlave(type, tx) {}
 
   // Called when robot need to stop activity
-  sleep() {}
+  sleep() {
+  }
 
   // Called when robot can go back to activity
-  wakeUp() {}
+  wakeUp() {
+  }
 
   log(msg) {
     this.logger.local(this.name + ' | DEBUG | ' + msg);
