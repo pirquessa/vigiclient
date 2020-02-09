@@ -6,6 +6,8 @@ Event emited:
 */
 class AbstractPlugin extends EventEmitter {
   constructor(name, logger) {
+    super();
+
     this.name = name;
     this.logger = logger;
   }

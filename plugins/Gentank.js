@@ -25,9 +25,7 @@ class Gentank extends AbstractPlugin {
   init(config) {
     this.i2c = config.i2c;
 
-    this.wakeUp();
-
-    return super(config);
+    return super.init(config);
   }
 
   forwardToSlave(type, tx) {
@@ -44,7 +42,7 @@ class Gentank extends AbstractPlugin {
   }
 
   sleep() {
-    super();
+    super.sleep();
 
     this.log('Go to sleep');
 
@@ -55,7 +53,7 @@ class Gentank extends AbstractPlugin {
   }
 
   wakeUp() {
-    super();
+    super.wakeUp();
 
     this.log('Wake up !');
 

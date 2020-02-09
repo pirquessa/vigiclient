@@ -99,7 +99,7 @@ const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))(LOGGER, [
- "./SerialSlave.js",
+ //"./SerialSlave.js",
  "./Gentank.js"
 ]);
 
