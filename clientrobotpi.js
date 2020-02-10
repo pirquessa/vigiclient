@@ -4,7 +4,6 @@ const CONF = require("/boot/robot.json");
 
 const TRAME = require("./trame.js");
 const LOGGER = require("./utils/Logger.js").init("/var/log/vigiclient.log");
-const UTILS = require("./utils/Utils.js");
 
 const PORTROBOTS = 8042;
 
@@ -22,15 +21,8 @@ const FRAME1S = "S".charCodeAt();
 const FRAME1T = "T".charCodeAt();
 
 const UPTIMEOUT = 5000;
-const V4L2 = "/usr/bin/v4l2-ctl";
-const LATENCEFINALARME = 350;
-const LATENCEDEBUTALARME = 750;
-const BITRATEVIDEOFAIBLE = 100000;
 const TXRATE = 50;
 const BEACONRATE = 10000;
-const CAPTURESENVEILLERATE = 60000;
-
-const SEPARATEURNALU = new Buffer.from([0, 0, 0, 1]);
 
 const CW2015ADDRESS = 0x62;
 const CW2015WAKEUP = new Buffer.from([0x0a, 0x00]);
@@ -53,12 +45,11 @@ const FS = require("fs");
 const IO = require("socket.io-client");
 const EXEC = require("child_process").exec;
 const RL = require("readline");
-const NET = require("net");
-const SPLIT = require("stream-split");
 const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))([
+ "./Safety.js",
  "./VideoDiffusion.js",
  // "./AudioDiffusion.js",
  // "./SerialSlave.js",
@@ -82,10 +73,7 @@ let hard;
 let tx;
 let rx;
 
-let lastTimestamp = Date.now();
-let latence = 0;
 let lastTrame = Date.now();
-let alarmeLatence = false;
 
 let oldPositions = [];
 let oldVitesses = [];
@@ -151,8 +139,6 @@ function constrain(n, nMin, nMax) {
  return n;
 }
 
-
-
 function debout(serveur) {
  if(up)
   return;
@@ -179,13 +165,6 @@ function debout(serveur) {
 
  for(let i = 0; i < 8; i++)
   setGpio(i, tx.interrupteurs[0] >> i & 1);
-
- if(hard.CAPTURESENVEILLE) {
-  UTILS.sigterm("Raspistill", "raspistill", function(code) {
-   diffusion();
-  });
- } else
-  diffusion();
 
  serveurCourant = serveur;
  up = true;
@@ -219,13 +198,6 @@ function dodo() {
   setGpio(i, 0);
 
  rx.interrupteurs[0] = 0;
-
- UTILS.sigterm("Diffusion", PROCESSDIFFUSION, function(code) {
-  UTILS.sigterm("DiffVideo", PROCESSDIFFVIDEO, function(code) {
-  });
- });
-
- UTILS.exec("v4l2-ctl", V4L2 + " -c video_bitrate=" + confVideo.BITRATE, function(code) {});
 
  serveurCourant = "";
  up = false;
@@ -334,22 +306,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
     }
    }
 
-   setTimeout(function() {
-    if(up) {
-     UTILS.sigterm("Diffusion", PROCESSDIFFUSION, function(code) {
-      UTILS.sigterm("DiffVideo", PROCESSDIFFVIDEO, function(code) {
-       configurationVideo(function(code) {
-        diffusion();
-       });
-      });
-     });
-    } else {
-     configurationVideo(function(code) {
-      initVideo = true;
-     });
-    }
-   }, 100);
-
    if(!init) {
     PLUGINS.apply('init', [{
      rx: rx,
@@ -361,18 +317,22 @@ CONF.SERVEURS.forEach(function(serveur, index) {
     }]).then(() => {
      init = true;
     });
-
-    PLUGINS.on('dataToServer', (eventName, data) => {
-     CONF.SERVEURS.forEach((serveur) => {
-      if(serveurCourant && serveur != serveurCourant)
-       return;
-
-      sockets[serveur].emit(eventName, data);
-     });
-    });
    }
   });
  }
+
+ PLUGINS.on('dataToServer', (eventName, data) => {
+  CONF.SERVEURS.forEach((serveur) => {
+   if(serveurCourant && serveur != serveurCourant)
+    return;
+
+   sockets[serveur].emit(eventName, data);
+  });
+ });
+
+ PLUGINS.on('activeEngine', (n, rattrape) => {
+  setConsigneMoteur(n, rattrape);
+ });
 
  sockets[serveur].on("disconnect", function() {
   LOGGER.both("Déconnecté de " + serveur + "/" + PORTROBOTS);
@@ -424,9 +384,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    return;
   lastTrame = now;
 
-  lastTimestamp = data.boucleVideoCommande;
-  latence = now - data.boucleVideoCommande;
-
   debout(serveur);
   clearTimeout(upTimeout);
   upTimeout = setTimeout(function() {
@@ -442,12 +399,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   for(let i = 0; i < tx.byteLength; i++)
    tx.bytes[i] = data.data[i];
 
-  if(latence > LATENCEDEBUTALARME) {
-   //LOGGER.both("Réception d'une trame avec trop de latence");
-   failSafe();
-  } else {
-   PLUGINS.apply('forwardToSlave', ['data', data.data]);
-  }
+  PLUGINS.apply('forwardToSlave', ['data', data.data]);
 
   for(let i = 0; i < hard.MOTEURS.length; i++)
    setConsigneMoteur(i, 1);
@@ -456,8 +408,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    for(let i = 0; i < 8; i++) {
     let etat = tx.interrupteurs[0] >> i & 1;
     setGpio(i, etat);
-    if(i == hard.INTERRUPTEURBOOSTVIDEO)
-     boostVideo = etat;
    }
    oldTxInterrupteurs = tx.interrupteurs[0]
   }
@@ -631,35 +581,6 @@ function pca9685MotorDrive(n, consigne) {
  pca9685Driver[pcaId].setDutyCycle(hard.MOTEURS[n].PINS[0], pwm);
 }
 
-function failSafe() {
- for(let i = 0; i < conf.TX.VITESSES.length; i++)
-  tx.vitesses[i] = conf.TX.VITESSES[i];
-
- for(let i = 0; i < hard.MOTEURS.length; i++)
-  if(hard.MOTEURS[i].FAILSAFE)
-   setConsigneMoteur(i, 0);
-}
-
-setInterval(function() {
- if(!up || !init)
-  return;
-
- let latencePredictive = Math.max(latence, Date.now() - lastTimestamp);
-
- if(latencePredictive < LATENCEFINALARME && alarmeLatence) {
-  LOGGER.both("Latence de " + latencePredictive + " ms, retour au débit vidéo configuré");
-  UTILS.exec("v4l2-ctl", V4L2 + " -c video_bitrate=" + confVideo.BITRATE, function(code) {
-  });
-  alarmeLatence = false;
- } else if(latencePredictive > LATENCEDEBUTALARME && !alarmeLatence) {
-  LOGGER.both("Latence de " + latencePredictive + " ms, arrêt des moteurs et passage en débit vidéo réduit");
-  failSafe();
-  UTILS.exec("v4l2-ctl", V4L2 + " -c video_bitrate=" + BITRATEVIDEOFAIBLE, function(code) {
-  });
-  alarmeLatence = true;
- }
-}, TXRATE);
-
 setInterval(function() {
  if(!init)
   return;
@@ -766,89 +687,6 @@ setInterval(function() {
   });
  });
 }, BEACONRATE);
-
-setInterval(function() {
- if(up || !init || !initVideo || !hard.CAPTURESENVEILLE)
-  return;
-
- let date = new Date();
- let overlay = date.toLocaleDateString() + " " + date.toLocaleTimeString();
- if(hard.CAPTURESHDR)
-  overlay += " HDR " + hard.CAPTURESHDR;
- let options = "-a 1024 -a '" + overlay + "' -rot " + confVideo.ROTATION;
-
- if(hard.CAPTURESHDR) {
-  EXEC("raspistill -ev " + -hard.CAPTURESHDR + " " + options + " -o /tmp/1.jpg", function(err) {
-   if(err) {
-    LOGGER.both("Erreur lors de la capture de la première photo");
-    return;
-   }
-   EXEC("raspistill " + options + " -o /tmp/2.jpg", function(err) {
-    if(err) {
-     LOGGER.both("Erreur lors de la capture de la deuxième photo");
-     return;
-    }
-    EXEC("raspistill -ev " + hard.CAPTURESHDR + " " + options + " -o /tmp/3.jpg", function(err) {
-     if(err) {
-      LOGGER.both("Erreur lors de la capture de la troisième photo");
-      return;
-     }
-     EXEC("enfuse -o /tmp/out.jpg /tmp/1.jpg /tmp/2.jpg /tmp/3.jpg", function(err) {
-      if(err)
-       LOGGER.both("Erreur lors de la fusion des photos");
-      else {
-       FS.readFile("/tmp/out.jpg", function(err, data) {
-        CONF.SERVEURS.forEach(function(serveur) {
-         LOGGER.both("Envoi d'une photo sur le serveur " + serveur);
-         sockets[serveur].emit("serveurrobotcapturesenveille", data);
-        });
-       });
-      }
-     });
-    });
-   });
-  });
- } else {
-  EXEC("raspistill -q 10 " + options + " -o /tmp/out.jpg", function(err) {
-   if(err)
-    LOGGER.both("Erreur lors de la capture de la photo");
-   else {
-    FS.readFile("/tmp/out.jpg", function(err, data) {
-     CONF.SERVEURS.forEach(function(serveur) {
-      LOGGER.both("Envoi d'une photo sur le serveur " + serveur);
-      sockets[serveur].emit("serveurrobotcapturesenveille", data);
-     });
-    });
-   }
-  });
- }
-}, CAPTURESENVEILLERATE);
-
-NET.createServer(function(socket) {
- const SPLITTER = new SPLIT(SEPARATEURNALU);
-
- LOGGER.both("Le processus de diffusion vidéo H.264 est connecté sur tcp://127.0.0.1:" + PORTTCPVIDEO);
-
- SPLITTER.on("data", function(data) {
-
-  if(serveurCourant) {
-   sockets[serveurCourant].emit("serveurrobotvideo", {
-    timestamp: Date.now(),
-    data: data
-   });
-  }
-
- }).on("error", function(err) {
-  LOGGER.both("Erreur lors du découpage du flux d'entrée en unités de couche d'abstraction réseau H.264");
- });
-
- socket.pipe(SPLITTER);
-
- socket.on("end", function() {
-  LOGGER.both("Le processus de diffusion vidéo H.264 est déconnecté de tcp://127.0.0.1:" + PORTTCPVIDEO);
- });
-
-}).listen(PORTTCPVIDEO);
 
 process.on("uncaughtException", function(err) {
  let i = 0;

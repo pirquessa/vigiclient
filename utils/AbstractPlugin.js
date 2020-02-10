@@ -4,6 +4,7 @@ const LOGGER = require("./Logger.js").getLogger();
 /*
 Event emited:
   - dataToServer: the plugin want to send data back to server
+  - activeEngine: the plugin want to activate or desactivate an engine
 */
 class AbstractPlugin extends EventEmitter {
   constructor(name) {
