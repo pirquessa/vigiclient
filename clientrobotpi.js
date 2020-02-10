@@ -46,7 +46,6 @@ const CMDDIFFUSION = [
 const FRAME0 = "$".charCodeAt();
 const FRAME1S = "S".charCodeAt();
 const FRAME1T = "T".charCodeAt();
-const FRAME1R = "R".charCodeAt();
 
 const UPTIMEOUT = 5000;
 const V4L2 = "/usr/bin/v4l2-ctl";
@@ -352,7 +351,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
    tx = new TRAME.Tx(conf.TX);
    rx = new TRAME.Rx(conf.TX, conf.RX);
-   rx.sync[1] = FRAME1R;
 
    for(let i = 0; i < conf.TX.POSITIONS.length; i++)
     oldPositions[i] = tx.positions[i] + 1;
@@ -434,6 +432,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
    if(!init) {
     PLUGINS.apply('init', [{
+     rx: rx,
      i2c: i2c,
      hard: hard
     }]).then(() => {
