@@ -7,7 +7,6 @@ const LOGGER = require("./utils/Logger.js").init("/var/log/vigiclient.log");
 const UTILS = require("./utils/Utils.js");
 
 const PORTROBOTS = 8042;
-const PORTTCPVIDEO = 8043;
 
 const INTERFACEWIFI = "wlan0";
 const FICHIERWIFI = "/proc/net/wireless";
@@ -16,32 +15,7 @@ const CPURATE = 250;
 const TEMPERATURERATE = 1000;
 const WIFIRATE = 250;
 
-const PROCESSDIFFUSION = "/usr/local/vigiclient/processdiffusion";
-const PROCESSDIFFVIDEO = "/usr/local/vigiclient/processdiffvideo";
-
 const CMDINT = RegExp(/^-?\d{1,10}$/);
-
-const CMDDIFFUSION = [
- [
-  PROCESSDIFFUSION,
-  " /dev/video0",
-  " | /bin/nc 127.0.0.1 PORTTCPVIDEO",
-  " -w 2"
- ], [
-  PROCESSDIFFVIDEO,
-  " -loglevel fatal",
-  " -f fbdev",
-  " -r FPS",
-  " -i /dev/fb0",
-  " -c:v h264_omx",
-  " -profile:v baseline",
-  " -b:v BITRATE",
-  " -flags:v +global_header",
-  " -bsf:v dump_extra",
-  " -f rawvideo",
-  " tcp://127.0.0.1:PORTTCPVIDEO"
- ]
-];
 
 const FRAME0 = "$".charCodeAt();
 const FRAME1S = "S".charCodeAt();
@@ -85,6 +59,7 @@ const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
 const PLUGINS = new (require("./plugins"))([
+ "./VideoDiffusion.js",
  // "./AudioDiffusion.js",
  // "./SerialSlave.js",
  // "./TextToSpeech.js",
@@ -106,9 +81,6 @@ let conf;
 let hard;
 let tx;
 let rx;
-let confVideo;
-let oldConfVideo;
-let cmdDiffusion;
 
 let lastTimestamp = Date.now();
 let latence = 0;
@@ -121,9 +93,6 @@ let oldMoteurs = [];
 let rattrapage = [];
 let oldTxInterrupteurs;
 
-let boostVideo = false;
-let oldBoostVideo = false;
-
 let gpiosMoteurs = [];
 let gpioInterrupteurs = [];
 
@@ -134,9 +103,6 @@ let pca9685Driver = [];
 
 let prevCpus = OS.cpus();
 let nbCpus = prevCpus.length;
-
-if(typeof CONF.CMDDIFFUSION === "undefined")
- CONF.CMDDIFFUSION = CMDDIFFUSION;
 
 CONF.SERVEURS.forEach(function(serveur) {
  sockets[serveur] = IO.connect(serveur, {"connect timeout": 1000, transports: ["websocket"], path: "/" + PORTROBOTS + "/socket.io"});
@@ -267,47 +233,6 @@ function dodo() {
  PLUGINS.apply('sleep');
 }
 
-function configurationVideo(callback) {
- cmdDiffusion = CONF.CMDDIFFUSION[confVideo.SOURCE].join("").replace("WIDTH", confVideo.WIDTH
-                                                           ).replace("HEIGHT", confVideo.HEIGHT
-                                                           ).replace(new RegExp("FPS", "g"), confVideo.FPS
-                                                           ).replace(new RegExp("BITRATE", "g"), confVideo.BITRATE
-                                                           ).replace("ROTATION", confVideo.ROTATION
-                                                           ).replace("PORTTCPVIDEO", PORTTCPVIDEO);
-
- LOGGER.both("Initialisation de la configuration Video4Linux");
-
- let luminosite;
- let contraste;
- if(boostVideo) {
-  luminosite = confVideo.BOOSTVIDEOLUMINOSITE;
-  contraste = confVideo.BOOSTVIDEOCONTRASTE;
- } else {
-  luminosite = confVideo.LUMINOSITE;
-  contraste = confVideo.CONTRASTE;
- }
-
- UTILS.exec("v4l2-ctl", V4L2 + " -v width=" + confVideo.WIDTH +
-                            ",height=" + confVideo.HEIGHT +
-                            ",pixelformat=4" +
-                         " -p " + confVideo.FPS +
-                         " -c h264_profile=0" +
-                            ",repeat_sequence_header=1" +
-                            ",rotate=" + confVideo.ROTATION +
-                            ",video_bitrate=" + confVideo.BITRATE +
-                            ",brightness=" + luminosite +
-                            ",contrast=" + contraste, function(code) {
-  callback(code);
- });
-}
-
-function diffusion() {
- LOGGER.both("Démarrage du flux de diffusion vidéo H.264");
- UTILS.exec("Diffusion", cmdDiffusion, function(code) {
-  LOGGER.both("Arrêt du flux de diffusion vidéo H.264");
- });
-}
-
 CONF.SERVEURS.forEach(function(serveur, index) {
 
  sockets[serveur].on("connect", function() {
@@ -364,11 +289,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    }
 
    oldTxInterrupteurs = conf.TX.INTERRUPTEURS[0];
-
-   confVideo = hard.CAMERAS[conf.COMMANDES[conf.DEFAUTCOMMANDE].CAMERA];
-   oldConfVideo = confVideo;
-   boostVideo = false;
-   oldBoostVideo = false;
 
    gpiosMoteurs.forEach(function(gpios) {
     gpios.forEach(function(gpio) {
@@ -433,7 +353,10 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    if(!init) {
     PLUGINS.apply('init', [{
      rx: rx,
+     tx: tx,
      i2c: i2c,
+     remoteControlConf: conf,
+     hardwareConf: hard,
      hard: hard
     }]).then(() => {
      init = true;
@@ -526,18 +449,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    PLUGINS.apply('forwardToSlave', ['data', data.data]);
   }
 
-  confVideo = hard.CAMERAS[tx.choixCameras[0]];
-  if(JSON.stringify(confVideo) != JSON.stringify(oldConfVideo)) {
-   UTILS.sigterm("Diffusion", PROCESSDIFFUSION, function(code) {
-    UTILS.sigterm("DiffVideo", PROCESSDIFFVIDEO, function(code) {
-     configurationVideo(function(code) {
-      diffusion();
-     });
-    });
-   });
-   oldConfVideo = confVideo;
-  }
-
   for(let i = 0; i < hard.MOTEURS.length; i++)
    setConsigneMoteur(i, 1);
 
@@ -549,19 +460,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      boostVideo = etat;
    }
    oldTxInterrupteurs = tx.interrupteurs[0]
-  }
-
-  if(boostVideo != oldBoostVideo) {
-   if(boostVideo) {
-    UTILS.exec("v4l2-ctl", V4L2 + " -c brightness=" + confVideo.BOOSTVIDEOLUMINOSITE +
-                               ",contrast=" + confVideo.BOOSTVIDEOCONTRASTE, function(code) {
-    });
-   } else {
-    UTILS.exec("v4l2-ctl", V4L2 + " -c brightness=" + confVideo.LUMINOSITE +
-                               ",contrast=" + confVideo.CONTRASTE, function(code) {
-    });
-   }
-   oldBoostVideo = boostVideo;
   }
 
   if(!hard.DEVTELEMETRIE) {

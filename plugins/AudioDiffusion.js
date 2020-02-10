@@ -23,7 +23,6 @@ class AudioDiffusion extends AbstractPlugin {
     ].join("");
 
     // Attributes
-    this.cmdDiffAudio = null;
   }
 
   init(config) {
