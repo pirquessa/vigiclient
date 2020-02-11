@@ -4,14 +4,14 @@ class PluginManager {
   constructor(pluginPathes) {
     this.plugins = [];
 
-    LOGGER.local('DEBUG | Will instanciate all plugins:');
+    LOGGER.local('PLUGIN | DEBUG | Will instanciate all plugins:');
     pluginPathes.forEach(pluginPath => {
-      LOGGER.local('DEBUG | Instanciate plugin: ' + pluginPath);
+      LOGGER.local('PLUGIN | DEBUG | Instanciate plugin: ' + pluginPath);
       try {
         this.plugins.push(new (require(pluginPath))());
       }
       catch(e) {
-        LOGGER.local('ERROR | Fail to instanciate plugin ' + pluginPath + ': ' + e);
+        LOGGER.local('PLUGIN | ERROR | Fail to instanciate plugin ' + pluginPath + ': ' + e);
       }
     });
   }
@@ -26,7 +26,7 @@ class PluginManager {
         promises.push(plugin[funName].apply(plugin, args));
       }
       catch(e) {
-        LOGGER.local('ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name + ': ' + e);
+        LOGGER.local('PLUGIN | ERROR | Fail to apply ' + funName + ' on plugin ' + plugin.name + ': ' + e);
       }
     });
 

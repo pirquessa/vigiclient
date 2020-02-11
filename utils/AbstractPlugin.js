@@ -27,23 +27,27 @@ class AbstractPlugin extends EventEmitter {
   // Called before sending "serveurrobotrx" to server
   updateRx(rx) {}
 
+  // Called when server send a txt message
+  forwardTxText(txt) {}
+  
+  // Called when server send a data message
+  forwardTxData(data) {}
+
   // Called to send data to slave (arduino ?)
   forwardToSlave(type, tx) {}
 
   // Called when robot need to stop activity
-  sleep() {
-  }
+  sleep() { }
 
   // Called when robot can go back to activity
-  wakeUp() {
-  }
+  wakeUp() {}
 
   log(msg) {
-    LOGGER.local(this.name + ' | DEBUG | ' + msg);
+    LOGGER.local('PLUGIN | ' + this.name + ' | DEBUG | ' + msg);
   }
 
   error(msg) {
-    LOGGER.local(this.name + ' | ERROR | ' + msg);
+    LOGGER.local('PLUGIN | ' + this.name + ' | ERROR | ' + msg);
   }
 }
 

@@ -27,7 +27,6 @@ class AudioDiffusion extends AbstractPlugin {
 
   init(config) {
     NET.createServer((socket) => {
-
       this.log("The audio diffusion process is connected to tcp://127.0.0.1:" + this.PORTTCPAUDIO);
 
       let array = [];

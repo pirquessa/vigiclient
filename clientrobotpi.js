@@ -381,7 +381,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
 
   if(data.data[1] == FRAME1T) {
    LOGGER.both("Réception d'une trame texte");
-   PLUGINS.apply('forwardToSlave', ['text', data.data]);
+   PLUGINS.apply('forwardTxText', [data.data]);
    return;
   }
 
@@ -400,6 +400,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    }
    oldTxInterrupteurs = tx.interrupteurs[0]
   }
+
+  PLUGINS.apply('forwardTxData', [data]);
 
   if(!hard.DEVTELEMETRIE) {
    for(let i = 0; i < conf.TX.POSITIONS.length; i++)

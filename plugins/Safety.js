@@ -38,6 +38,8 @@ class Safety extends AbstractPlugin {
   }
 
   wakeUp() {
+    super.wakeUp();
+
     this.interval = setInterval(() => {
       let latence = Date.now() - this.lastTimestamp;
       if (latence > this.LATENCEDEBUTALARME) {
@@ -47,8 +49,6 @@ class Safety extends AbstractPlugin {
   }
 
   _failSafe() {
-    this.log("Time to feel safe !");
-
     for (let i = 0; i < this.remoteControlConf.TX.VITESSES.length; i++) {
       this.tx.vitesses[i] = this.remoteControlConf.TX.VITESSES[i];
     }

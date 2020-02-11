@@ -12,10 +12,12 @@ class VideoDiffusion extends AbstractPlugin {
     super('VideoDiffusion');
 
     // Config constants
-    this.intervals.qualityCheck = 50;
-    this.LATENCEFINALARME = 350;
-    this.LATENCEDEBUTALARME = 750;
-    this.BITRATEVIDEOFAIBLE = 100000;
+    this.INTERVALQUALITYCHECK = 150;
+    this.MIN_DURATION_OF_ALARM = 3000;
+    this.MIN_DURATION_OF_LAG_FOR_ALARM = 500;
+    this.LATENCYENDALARM = 250;
+    this.LATENCYSTARTALARM = 500;
+    this.BITRATEVIDEOFAIBLE = 250000;
     this.CAPTURESENVEILLERATE = 60000;
 
     this.SEPARATEURNALU = new Buffer.from([0, 0, 0, 1]);
@@ -58,7 +60,9 @@ class VideoDiffusion extends AbstractPlugin {
     this.isReady = false;
     this.boostVideo = false;
     this.oldBoostVideo = false;
-    this.lastTimestamp = Date.now();
+    this.startAlarmTimestamp = null;
+    this.lastTimestamp = null;
+    this.lagStartTimestamp = null;
     this.intervals = {
       sleepCapture: null,
       qualityCheck: null
@@ -66,6 +70,8 @@ class VideoDiffusion extends AbstractPlugin {
   }
 
   init(config) {
+    this.log('Init !');
+
     this.hardwareConf = config.hardwareConf;
     this.rx = config.rx;
     this.tx = config.tx;
@@ -83,29 +89,29 @@ class VideoDiffusion extends AbstractPlugin {
 
       NET.createServer((socket) => {
         const SPLITTER = new SPLIT(this.SEPARATEURNALU);
-
-        this.log("Le processus de diffusion vidéo H.264 est connecté sur tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+        this.log("The video diffusion process is connected to tcp://127.0.0.1:" + this.PORTTCPVIDEO);
 
         SPLITTER.on("data", (data) => {
           this.emit('dataToServer', 'serveurrobotvideo', {
             timestamp: Date.now(),
             data: data
           });
-        }).on("error", function (err) {
-          this.error("Erreur lors du découpage du flux d'entrée en unités de couche d'abstraction réseau H.264");
+        }).on("error", (err) => {
+          this.error("Fail to split incoming flow");
         });
 
         socket.pipe(SPLITTER);
 
-        socket.on("end", function () {
-          this.log("Le processus de diffusion vidéo H.264 est déconnecté de tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+        socket.on("end", () => {
+          this.log("The video diffusion process is disconnected from tcp://127.0.0.1:" + this.PORTTCPVIDEO);
         });
-
       }).listen(this.PORTTCPVIDEO);
     });
   }
 
   updateConfiguration(config) {
+    this.log('Update configuration');
+
     this.hardwareConf = config.hardwareConf;
     this.rx = config.rx;
     this.tx = config.tx;
@@ -122,29 +128,35 @@ class VideoDiffusion extends AbstractPlugin {
     }, 100);
   }
 
-  registerNewSocket(serverSocket) {
-    serverSocket.on("clientsrobottx", (data) => {
-      this.lastTimestamp = data.boucleVideoCommande;
+  forwardTxData(data) {
+    if (!this.isReady || data.boucleVideoCommande <= 0) {
+      return;
+    }
 
-      this.confVideo = this.this.hardwareConfwareConf.CAMERAS[this.tx.choixCameras[0]];
-      if (JSON.stringify(this.confVideo) != JSON.stringify(this.oldConfVideo)) {
-        this._restart();
-        this.oldConfVideo = this.confVideo;
-      }
+    this.lastTimestamp = data.boucleVideoCommande;
 
-      this.boostVideo = this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1;
-      if (this.boostVideo != this.oldBoostVideo) {
-        if (this.boostVideo) {
-          UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.BOOSTVIDEOLUMINOSITE + ",contrast=" + this.confVideo.BOOSTVIDEOCONTRASTE, (code) => { });
-        } else {
-          UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.LUMINOSITE + ",contrast=" + this.confVideo.CONTRASTE, (code) => { });
-        }
-        this.oldBoostVideo = this.boostVideo;
+    this.confVideo = this.hardwareConf.CAMERAS[this.tx.choixCameras[0]];
+    if (JSON.stringify(this.confVideo) != JSON.stringify(this.oldConfVideo)) {
+      this._restart();
+      this.oldConfVideo = this.confVideo;
+    }
+
+    this.boostVideo = this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1;
+    if (this.boostVideo != this.oldBoostVideo) {
+      if (this.boostVideo) {
+        UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.BOOSTVIDEOLUMINOSITE + ",contrast=" + this.confVideo.BOOSTVIDEOCONTRASTE, (code) => { });
+      } else {
+        UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.LUMINOSITE + ",contrast=" + this.confVideo.CONTRASTE, (code) => { });
       }
-    });
+      this.oldBoostVideo = this.boostVideo;
+    }
   }
 
   wakeUp() {
+    super.wakeUp();
+
+    this.log('wakeUp');
+
     this.isSeeping = false;
 
     if (this.hardwareConf.CAPTURESENVEILLE) {
@@ -158,26 +170,14 @@ class VideoDiffusion extends AbstractPlugin {
     clearInterval(this.intervals.sleepCapture);
     this.intervals.sleepCapture = null;
 
-    let latencyAlarm = false;
-    this.intervals.qualityCheck = setInterval(() => {
-      if (!this.isReady)
-        return;
-
-      let predictiveLatency = Date.now() - this.lastTimestamp;
-
-      if (latencyAlarm && predictiveLatency < this.LATENCEFINALARME) {
-        this.log("Latence de " + predictiveLatency + " ms, retour au débit vidéo configuré");
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
-        latencyAlarm = false;
-      } else if (!latencyAlarm && predictiveLatency > this.LATENCEDEBUTALARME) {
-        this.log("Latence de " + predictiveLatency + " ms, passage en débit vidéo réduit");
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
-        latencyAlarm = true;
-      }
-    }, this.intervals.qualityCheck);
+    setTimeout(this._startMonitorLatency.bind(this), this.MIN_DURATION_OF_ALARM);
   }
 
   sleep() {
+    super.sleep();
+
+    this.log('sleep');
+
     this.isSeeping = true;
 
     UTILS.sigterm("Diffusion", this.PROCESSDIFFUSION, (code) => {
@@ -186,7 +186,7 @@ class VideoDiffusion extends AbstractPlugin {
 
     UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
 
-    this.intervals.sleepCapture = setInterval(function () {
+    this.intervals.sleepCapture = setInterval(() => {
       if (!this.isSeeping || !this.isReady || !this.hardwareConf.CAPTURESENVEILLE)
         return;
 
@@ -197,15 +197,45 @@ class VideoDiffusion extends AbstractPlugin {
     this.intervals.qualityCheck = null;
   }
 
+  _startMonitorLatency() {
+    this.intervals.qualityCheck = setInterval(() => {
+      if (!this.isReady || this.lastTimestamp === null)
+        return;
+
+      let latency = Date.now() - this.lastTimestamp;
+
+      if (this._isLowLantencyMode() && latency < this.LATENCYENDALARM && Date.now() - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
+        this.log("Latency " + latency + " ms, go back to original config");
+        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+        this.startAlarmTimestamp = null;
+      } 
+      else if (!this._isLowLantencyMode() && latency > this.LATENCYSTARTALARM) {
+        if (this.lagStartTimestamp === null) {
+          this.lagStartTimestamp = Date.now();
+        }
+        else if (Date.now() - this.lagStartTimestamp > this.MIN_DURATION_OF_LAG_FOR_ALARM) {
+          this.log("Latency " + latency + " ms, go to low lentency config");
+          UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
+          this.startAlarmTimestamp = Date.now();
+        }
+      }
+      else {
+        this.lagStartTimestamp = null;
+      }
+    }, this.INTERVALQUALITYCHECK);
+  }
+
+  _isLowLantencyMode() {
+    return this.startAlarmTimestamp !== null;
+  }
+
   _configurationVideo(callback) {
-    this.cmdDiffusion = this.CMDDIFFUSIONTEMPLATE[this.confVideo.SOURCE].join("")
+    this.cmdDiffusion = this.CMDDIFFUSIONTEMPLATE[this.confVideo.SOURCE]
       .replace("WIDTH", this.confVideo.WIDTH)
       .replace("HEIGHT", this.confVideo.HEIGHT)
       .replace(new RegExp("FPS", "g"), this.confVideo.FPS)
       .replace(new RegExp("BITRATE", "g"), this.confVideo.BITRATE)
       .replace("ROTATION", this.confVideo.ROTATION);
-
-    this.log("Initialisation de la configuration Video4Linux");
 
     let brightness;
     let contrast;
@@ -231,7 +261,7 @@ class VideoDiffusion extends AbstractPlugin {
 
   _diffusion() {
     this.log("Start H.264 diffusion process");
-    UTILS.exec("Diffusion", this.cmdDiffusion, function (code) {
+    UTILS.exec("Diffusion", this.cmdDiffusion, (code) => {
       this.log("Stop of the H.264 diffusion process");
     });
   }
@@ -273,7 +303,7 @@ class VideoDiffusion extends AbstractPlugin {
               if (err)
                 this.error("Erreur lors de la fusion des photos");
               else {
-                FS.readFile("/tmp/out.jpg", function (err, data) {
+                FS.readFile("/tmp/out.jpg", (err, data) => {
                   this.log("Envoi d'une photo sur le serveur " + serveur);
                   this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
                 });
@@ -287,7 +317,7 @@ class VideoDiffusion extends AbstractPlugin {
         if (err)
           this.error("Erreur lors de la capture de la photo");
         else {
-          FS.readFile("/tmp/out.jpg", function (err, data) {
+          FS.readFile("/tmp/out.jpg", (err, data) => {
             this.log("Envoi d'une photo sur le serveur " + serveur);
             this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
           });
