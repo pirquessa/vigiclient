@@ -12,6 +12,7 @@ class VideoDiffusion extends AbstractPlugin {
     super('VideoDiffusion');
 
     // Config constants
+    this.intervals.qualityCheck = 50;
     this.LATENCEFINALARME = 350;
     this.LATENCEDEBUTALARME = 750;
     this.BITRATEVIDEOFAIBLE = 100000;
@@ -24,7 +25,7 @@ class VideoDiffusion extends AbstractPlugin {
     this.V4L2 = "/usr/bin/v4l2-ctl";
     this.PROCESSDIFFUSION = "/usr/local/vigiclient/processdiffusion";
     this.PROCESSDIFFVIDEO = "/usr/local/vigiclient/processdiffvideo";
-    this.CMDDIFFUSION = [
+    this.CMDDIFFUSIONTEMPLATE = [
       [
         this.PROCESSDIFFUSION,
         " /dev/video0",
@@ -54,11 +55,14 @@ class VideoDiffusion extends AbstractPlugin {
     this.confVideo = null;
     this.oldConfVideo = null;
     this.isSeeping = true;
-
+    this.isReady = false;
     this.boostVideo = false;
     this.oldBoostVideo = false;
-
     this.lastTimestamp = Date.now();
+    this.intervals = {
+      sleepCapture: null,
+      qualityCheck: null
+    };
   }
 
   init(config) {
@@ -69,118 +73,56 @@ class VideoDiffusion extends AbstractPlugin {
     this.confVideo = this.hardwareConf.CAMERAS[config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA];
     this.oldConfVideo = this.confVideo;
 
-    setInterval(function () {
-      if (up || !init || !initVideo || !this.hardwareConf.CAPTURESENVEILLE)
-        return;
+    return new Promise((resolve, reject) => {
+      setTimeout(() => { // Wait a little bit or one callback will not trigger !
+        this._configurationVideo((code) => {
+          this.isReady = true;
+          resolve();
+        });
+      }, 100);
 
-      let date = new Date();
-      let overlay = date.toLocaleDateString() + " " + date.toLocaleTimeString();
-      if (this.hardwareConf.CAPTURESHDR)
-        overlay += " HDR " + this.hardwareConf.CAPTURESHDR;
-      let options = "-a 1024 -a '" + overlay + "' -rot " + this.confVideo.ROTATION;
+      NET.createServer((socket) => {
+        const SPLITTER = new SPLIT(this.SEPARATEURNALU);
 
-      if (this.hardwareConf.CAPTURESHDR) {
-        EXEC("raspistill -ev " + -this.hardwareConf.CAPTURESHDR + " " + options + " -o /tmp/1.jpg", (err) => {
-          if (err) {
-            this.error("Erreur lors de la capture de la première photo");
-            return;
-          }
-          EXEC("raspistill " + options + " -o /tmp/2.jpg", (err) => {
-            if (err) {
-              this.error("Erreur lors de la capture de la deuxième photo");
-              return;
-            }
-            EXEC("raspistill -ev " + this.hardwareConf.CAPTURESHDR + " " + options + " -o /tmp/3.jpg", (err) => {
-              if (err) {
-                this.error("Erreur lors de la capture de la troisième photo");
-                return;
-              }
-              EXEC("enfuse -o /tmp/out.jpg /tmp/1.jpg /tmp/2.jpg /tmp/3.jpg", (err) => {
-                if (err)
-                  this.error("Erreur lors de la fusion des photos");
-                else {
-                  FS.readFile("/tmp/out.jpg", function (err, data) {
-                    this.log("Envoi d'une photo sur le serveur " + serveur);
-                    this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
-                  });
-                }
-              });
-            });
+        this.log("Le processus de diffusion vidéo H.264 est connecté sur tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+
+        SPLITTER.on("data", (data) => {
+          this.emit('dataToServer', 'serveurrobotvideo', {
+            timestamp: Date.now(),
+            data: data
           });
+        }).on("error", function (err) {
+          this.error("Erreur lors du découpage du flux d'entrée en unités de couche d'abstraction réseau H.264");
         });
+
+        socket.pipe(SPLITTER);
+
+        socket.on("end", function () {
+          this.log("Le processus de diffusion vidéo H.264 est déconnecté de tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+        });
+
+      }).listen(this.PORTTCPVIDEO);
+    });
+  }
+
+  updateConfiguration(config) {
+    this.hardwareConf = config.hardwareConf;
+    this.rx = config.rx;
+    this.tx = config.tx;
+
+    this.confVideo = this.hardwareConf.CAMERAS[config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA];
+    this.oldConfVideo = this.confVideo;
+
+    setTimeout(() => { // Wait a little bit or one callback will not trigger !
+      if (!this.isSeeping) {
+        this._restart();
       } else {
-        EXEC("raspistill -q 10 " + options + " -o /tmp/out.jpg", (err) => {
-          if (err)
-            this.error("Erreur lors de la capture de la photo");
-          else {
-            FS.readFile("/tmp/out.jpg", function (err, data) {
-              this.log("Envoi d'une photo sur le serveur " + serveur);
-              this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
-            });
-          }
-        });
+        this._configurationVideo((code) => { });
       }
-    }, this.CAPTURESENVEILLERATE);
-
-    let alarmeLatence = false;
-    setInterval(() => {
-      if (!up || !init)
-        return;
-
-      let latencePredictive = Date.now() - lastTimestamp;
-
-      if (latencePredictive < this.LATENCEFINALARME && alarmeLatence) {
-        this.log("Latence de " + latencePredictive + " ms, retour au débit vidéo configuré");
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
-        alarmeLatence = false;
-      } else if (latencePredictive > this.LATENCEDEBUTALARME && !alarmeLatence) {
-        this.log("Latence de " + latencePredictive + " ms, passage en débit vidéo réduit");
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
-        alarmeLatence = true;
-      }
-    }, TXRATE);
-
-    NET.createServer((socket) => {
-      const SPLITTER = new SPLIT(this.SEPARATEURNALU);
-
-      this.log("Le processus de diffusion vidéo H.264 est connecté sur tcp://127.0.0.1:" + this.PORTTCPVIDEO);
-
-      SPLITTER.on("data", (data) => {
-        this.emit('dataToServer', 'serveurrobotvideo', {
-          timestamp: Date.now(),
-          data: data
-        });
-      }).on("error", function (err) {
-        this.error("Erreur lors du découpage du flux d'entrée en unités de couche d'abstraction réseau H.264");
-      });
-
-      socket.pipe(SPLITTER);
-
-      socket.on("end", function () {
-        this.log("Le processus de diffusion vidéo H.264 est déconnecté de tcp://127.0.0.1:" + this.PORTTCPVIDEO);
-      });
-
-    }).listen(this.PORTTCPVIDEO);
+    }, 100);
   }
 
   registerNewSocket(serverSocket) {
-    serverSocket.on("clientsrobotconf", (data) => {
-      this.hardwareConf = data.hard;
-
-      this.confVideo = this.hardwareConf.CAMERAS[config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA];
-      this.oldConfVideo = this.confVideo;
-
-      setTimeout(() => { // Wait a little bit or one callback will not trigger !
-        if (!this.isSeeping) {
-          this._restart();
-        } else {
-          this._configurationVideo((code) => {
-            initVideo = true;
-          });
-        }
-      }, 100);
-    });
-
     serverSocket.on("clientsrobottx", (data) => {
       this.lastTimestamp = data.boucleVideoCommande;
 
@@ -212,6 +154,27 @@ class VideoDiffusion extends AbstractPlugin {
     } else {
       this._diffusion();
     }
+
+    clearInterval(this.intervals.sleepCapture);
+    this.intervals.sleepCapture = null;
+
+    let latencyAlarm = false;
+    this.intervals.qualityCheck = setInterval(() => {
+      if (!this.isReady)
+        return;
+
+      let predictiveLatency = Date.now() - this.lastTimestamp;
+
+      if (latencyAlarm && predictiveLatency < this.LATENCEFINALARME) {
+        this.log("Latence de " + predictiveLatency + " ms, retour au débit vidéo configuré");
+        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+        latencyAlarm = false;
+      } else if (!latencyAlarm && predictiveLatency > this.LATENCEDEBUTALARME) {
+        this.log("Latence de " + predictiveLatency + " ms, passage en débit vidéo réduit");
+        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
+        latencyAlarm = true;
+      }
+    }, this.intervals.qualityCheck);
   }
 
   sleep() {
@@ -222,10 +185,20 @@ class VideoDiffusion extends AbstractPlugin {
     });
 
     UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+
+    this.intervals.sleepCapture = setInterval(function () {
+      if (!this.isSeeping || !this.isReady || !this.hardwareConf.CAPTURESENVEILLE)
+        return;
+
+      this._runSleepCapture();
+    }, this.CAPTURESENVEILLERATE);
+
+    clearInterval(this.intervals.qualityCheck);
+    this.intervals.qualityCheck = null;
   }
 
   _configurationVideo(callback) {
-    this.cmdDiffusion = CONF.CMDDIFFUSION[this.confVideo.SOURCE].join("")
+    this.cmdDiffusion = this.CMDDIFFUSIONTEMPLATE[this.confVideo.SOURCE].join("")
       .replace("WIDTH", this.confVideo.WIDTH)
       .replace("HEIGHT", this.confVideo.HEIGHT)
       .replace(new RegExp("FPS", "g"), this.confVideo.FPS)
@@ -234,14 +207,14 @@ class VideoDiffusion extends AbstractPlugin {
 
     this.log("Initialisation de la configuration Video4Linux");
 
-    let luminosite;
-    let contraste;
-    if (boostVideo) {
-      luminosite = this.confVideo.BOOSTVIDEOLUMINOSITE;
-      contraste = this.confVideo.BOOSTVIDEOCONTRASTE;
+    let brightness;
+    let contrast;
+    if (this.boostVideo) {
+      brightness = this.confVideo.BOOSTVIDEOLUMINOSITE;
+      contrast = this.confVideo.BOOSTVIDEOCONTRASTE;
     } else {
-      luminosite = this.confVideo.LUMINOSITE;
-      contraste = this.confVideo.CONTRASTE;
+      brightness = this.confVideo.LUMINOSITE;
+      contrast = this.confVideo.CONTRASTE;
     }
 
     UTILS.exec("v4l2-ctl", this.V4L2 + " -v width=" + this.confVideo.WIDTH +
@@ -252,14 +225,14 @@ class VideoDiffusion extends AbstractPlugin {
       ",repeat_sequence_header=1" +
       ",rotate=" + this.confVideo.ROTATION +
       ",video_bitrate=" + this.confVideo.BITRATE +
-      ",brightness=" + luminosite +
-      ",contrast=" + contraste, callback);
+      ",brightness=" + brightness +
+      ",contrast=" + contrast, callback);
   }
 
   _diffusion() {
-    this.log("Démarrage du flux de diffusion vidéo H.264");
+    this.log("Start H.264 diffusion process");
     UTILS.exec("Diffusion", this.cmdDiffusion, function (code) {
-      this.log("Arrêt du flux de diffusion vidéo H.264");
+      this.log("Stop of the H.264 diffusion process");
     });
   }
 
@@ -271,6 +244,56 @@ class VideoDiffusion extends AbstractPlugin {
         });
       });
     });
+  }
+
+  _runSleepCapture() {
+    let date = new Date();
+    let overlay = date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    if (this.hardwareConf.CAPTURESHDR)
+      overlay += " HDR " + this.hardwareConf.CAPTURESHDR;
+    let options = "-a 1024 -a '" + overlay + "' -rot " + this.confVideo.ROTATION;
+
+    if (this.hardwareConf.CAPTURESHDR) {
+      EXEC("raspistill -ev " + -this.hardwareConf.CAPTURESHDR + " " + options + " -o /tmp/1.jpg", (err) => {
+        if (err) {
+          this.error("Erreur lors de la capture de la première photo");
+          return;
+        }
+        EXEC("raspistill " + options + " -o /tmp/2.jpg", (err) => {
+          if (err) {
+            this.error("Erreur lors de la capture de la deuxième photo");
+            return;
+          }
+          EXEC("raspistill -ev " + this.hardwareConf.CAPTURESHDR + " " + options + " -o /tmp/3.jpg", (err) => {
+            if (err) {
+              this.error("Erreur lors de la capture de la troisième photo");
+              return;
+            }
+            EXEC("enfuse -o /tmp/out.jpg /tmp/1.jpg /tmp/2.jpg /tmp/3.jpg", (err) => {
+              if (err)
+                this.error("Erreur lors de la fusion des photos");
+              else {
+                FS.readFile("/tmp/out.jpg", function (err, data) {
+                  this.log("Envoi d'une photo sur le serveur " + serveur);
+                  this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
+                });
+              }
+            });
+          });
+        });
+      });
+    } else {
+      EXEC("raspistill -q 10 " + options + " -o /tmp/out.jpg", (err) => {
+        if (err)
+          this.error("Erreur lors de la capture de la photo");
+        else {
+          FS.readFile("/tmp/out.jpg", function (err, data) {
+            this.log("Envoi d'une photo sur le serveur " + serveur);
+            this.emit('dataToServer', 'serveurrobotcapturesenveille', data);
+          });
+        }
+      });
+    }
   }
 }
 

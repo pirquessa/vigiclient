@@ -67,7 +67,6 @@ let serveurCourant = "";
 let up = false;
 let upTimeout;
 let init = false;
-let initVideo = false;
 let conf;
 let hard;
 let tx;
@@ -145,11 +144,6 @@ function debout(serveur) {
 
  if(!init) {
   LOGGER.both("Ce robot n'est pas initialisé");
-  return;
- }
-
- if(!initVideo) {
-  LOGGER.both("La vidéo n'est pas initialisée");
   return;
  }
 
@@ -318,21 +312,16 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      init = true;
     });
    }
+   else {
+    PLUGINS.apply('updateConfiguration', [{
+     rx: rx,
+     tx: tx,
+     remoteControlConf: conf,
+     hardwareConf: hard
+    }]);
+   }
   });
  }
-
- PLUGINS.on('dataToServer', (eventName, data) => {
-  CONF.SERVEURS.forEach((serveur) => {
-   if(serveurCourant && serveur != serveurCourant)
-    return;
-
-   sockets[serveur].emit(eventName, data);
-  });
- });
-
- PLUGINS.on('activeEngine', (n, rattrape) => {
-  setConsigneMoteur(n, rattrape);
- });
 
  sockets[serveur].on("disconnect", function() {
   LOGGER.both("Déconnecté de " + serveur + "/" + PORTROBOTS);
@@ -432,6 +421,19 @@ CONF.SERVEURS.forEach(function(serveur, index) {
  PLUGINS.apply('registerNewSocket', [sockets[serveur]]);
 });
 
+PLUGINS.on('dataToServer', (eventName, data) => {
+ CONF.SERVEURS.forEach((serveur) => {
+  if (serveurCourant && serveur != serveurCourant)
+   return;
+
+  sockets[serveur].emit(eventName, data);
+ });
+});
+
+PLUGINS.on('activeEngine', (n, rattrape) => {
+ setConsigneMoteur(n, rattrape);
+});
+ 
 function setPca9685Gpio(pcaId, pin, etat) {
  if(etat)
   pca9685Driver[pcaId].channelOn(pin);
