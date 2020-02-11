@@ -4,10 +4,9 @@ const EXEC = require("child_process").exec;
 const RL = require("readline");
 
 module.exports = {
-  exec: function (name, command, endCallback) {
-    LOGGER.both("Start subProcess " + name);
-    LOGGER.both(command);
-    let subProcess = EXEC(command);
+  exec: function (name, cmd, endCallback) {
+    LOGGER.both("Start subProcess " + name + ": \"" + cmd + "\"");
+    let subProcess = EXEC(cmd);
     let stdout = RL.createInterface(subProcess.stdout);
     let stderr = RL.createInterface(subProcess.stderr);
     let pid = subProcess.pid;

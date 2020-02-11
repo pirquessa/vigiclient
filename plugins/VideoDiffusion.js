@@ -12,12 +12,11 @@ class VideoDiffusion extends AbstractPlugin {
     super('VideoDiffusion');
 
     // Config constants
-    this.INTERVALQUALITYCHECK = 150;
     this.MIN_DURATION_OF_ALARM = 3000;
-    this.MIN_DURATION_OF_LAG_FOR_ALARM = 500;
-    this.LATENCYENDALARM = 250;
-    this.LATENCYSTARTALARM = 500;
-    this.BITRATEVIDEOFAIBLE = 250000;
+    this.MIN_DURATION_OF_LAG_FOR_ALARM = 300;
+    this.LATENCYENDALARM = 350;
+    this.LATENCYSTARTALARM = 750;
+    this.BITRATEVIDEOFAIBLE = 100000;
     this.CAPTURESENVEILLERATE = 60000;
 
     this.SEPARATEURNALU = new Buffer.from([0, 0, 0, 1]);
@@ -144,9 +143,9 @@ class VideoDiffusion extends AbstractPlugin {
     this.boostVideo = this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1;
     if (this.boostVideo != this.oldBoostVideo) {
       if (this.boostVideo) {
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.BOOSTVIDEOLUMINOSITE + ",contrast=" + this.confVideo.BOOSTVIDEOCONTRASTE, (code) => { });
+        this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.BOOSTVIDEOLUMINOSITE + ",contrast=" + this.confVideo.BOOSTVIDEOCONTRASTE, (code) => { });
       } else {
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.LUMINOSITE + ",contrast=" + this.confVideo.CONTRASTE, (code) => { });
+        this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.LUMINOSITE + ",contrast=" + this.confVideo.CONTRASTE, (code) => { });
       }
       this.oldBoostVideo = this.boostVideo;
     }
@@ -184,7 +183,7 @@ class VideoDiffusion extends AbstractPlugin {
       UTILS.sigterm("DiffVideo", this.PROCESSDIFFVIDEO, (code) => { });
     });
 
-    UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+    this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
 
     this.intervals.sleepCapture = setInterval(() => {
       if (!this.isSeeping || !this.isReady || !this.hardwareConf.CAPTURESENVEILLE)
@@ -206,7 +205,7 @@ class VideoDiffusion extends AbstractPlugin {
 
       if (this._isLowLantencyMode() && latency < this.LATENCYENDALARM && Date.now() - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
         this.log("Latency " + latency + " ms, go back to original config");
-        UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+        this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
         this.startAlarmTimestamp = null;
       } 
       else if (!this._isLowLantencyMode() && latency > this.LATENCYSTARTALARM) {
@@ -215,14 +214,14 @@ class VideoDiffusion extends AbstractPlugin {
         }
         else if (Date.now() - this.lagStartTimestamp > this.MIN_DURATION_OF_LAG_FOR_ALARM) {
           this.log("Latency " + latency + " ms, go to low lentency config");
-          UTILS.exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
+          this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
           this.startAlarmTimestamp = Date.now();
         }
       }
       else {
         this.lagStartTimestamp = null;
       }
-    }, this.INTERVALQUALITYCHECK);
+    }, this.MIN_DURATION_OF_LAG_FOR_ALARM / 2);
   }
 
   _isLowLantencyMode() {
@@ -247,7 +246,7 @@ class VideoDiffusion extends AbstractPlugin {
       contrast = this.confVideo.CONTRASTE;
     }
 
-    UTILS.exec("v4l2-ctl", this.V4L2 + " -v width=" + this.confVideo.WIDTH +
+    this._exec("v4l2-ctl", this.V4L2 + " -v width=" + this.confVideo.WIDTH +
       ",height=" + this.confVideo.HEIGHT +
       ",pixelformat=4" +
       " -p " + this.confVideo.FPS +
@@ -323,6 +322,14 @@ class VideoDiffusion extends AbstractPlugin {
           });
         }
       });
+    }
+  }
+  
+  _exec(name, cmd, endCallback) {
+    this.log("Start subProcess " + name + ": \"" + cmd + "\"");
+    let subProcess = EXEC(cmd);
+    if (endCallback !== undefined) {
+      subProcess.on("close", endCallback);
     }
   }
 }
