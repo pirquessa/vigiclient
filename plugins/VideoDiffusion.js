@@ -1,6 +1,5 @@
 const AbstractPlugin = require("../utils/AbstractPlugin.js");
 const UTILS = require("../utils/Utils.js");
-const CONF = require("/boot/robot.json");
 
 const FS = require("fs");
 const EXEC = require("child_process").exec;
@@ -54,7 +53,7 @@ class VideoDiffusion extends AbstractPlugin {
     this.tx = null;
     this.cmdDiffusion = null;
     this.confVideo = null;
-    this.oldConfVideo = null;
+    this.currentCameraIndex = null;
     this.isSeeping = true;
     this.isReady = false;
     this.boostVideo = false;
@@ -75,8 +74,8 @@ class VideoDiffusion extends AbstractPlugin {
     this.rx = config.rx;
     this.tx = config.tx;
 
-    this.confVideo = this.hardwareConf.CAMERAS[config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA];
-    this.oldConfVideo = this.confVideo;
+    this.currentCameraIndex = config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA;
+    this.confVideo = this.hardwareConf.CAMERAS[this.currentCameraIndex];
 
     return new Promise((resolve, reject) => {
       setTimeout(() => { // Wait a little bit or one callback will not trigger !
@@ -115,8 +114,8 @@ class VideoDiffusion extends AbstractPlugin {
     this.rx = config.rx;
     this.tx = config.tx;
 
-    this.confVideo = this.hardwareConf.CAMERAS[config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA];
-    this.oldConfVideo = this.confVideo;
+    this.currentCameraIndex = config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA;
+    this.confVideo = this.hardwareConf.CAMERAS[this.currentCameraIndex];
 
     setTimeout(() => { // Wait a little bit or one callback will not trigger !
       if (!this.isSeeping) {
@@ -134,20 +133,20 @@ class VideoDiffusion extends AbstractPlugin {
 
     this.lastTimestamp = data.boucleVideoCommande;
 
-    this.confVideo = this.hardwareConf.CAMERAS[this.tx.choixCameras[0]];
-    if (JSON.stringify(this.confVideo) != JSON.stringify(this.oldConfVideo)) {
+    if (this.currentCameraIndex !== this.tx.choixCameras[0]) {
+      this.currentCameraIndex = this.tx.choixCameras[0];
+      this.confVideo = this.hardwareConf.CAMERAS[this.currentCameraIndex];
       this._restart();
-      this.oldConfVideo = this.confVideo;
     }
 
     this.boostVideo = this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1;
     if (this.boostVideo != this.oldBoostVideo) {
-      if (this.boostVideo) {
-        this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.BOOSTVIDEOLUMINOSITE + ",contrast=" + this.confVideo.BOOSTVIDEOCONTRASTE, (code) => { });
-      } else {
-        this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + this.confVideo.LUMINOSITE + ",contrast=" + this.confVideo.CONTRASTE, (code) => { });
-      }
       this.oldBoostVideo = this.boostVideo;
+
+      let brightness = this.boostVideo ? this.confVideo.BOOSTVIDEOLUMINOSITE : this.confVideo.LUMINOSITE;
+      let contrast = this.boostVideo ? this.confVideo.BOOSTVIDEOCONTRASTE : this.confVideo.CONTRASTE;
+      
+      this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + brightness + ",contrast=" + contrast);
     }
   }
 
@@ -183,7 +182,7 @@ class VideoDiffusion extends AbstractPlugin {
       UTILS.sigterm("DiffVideo", this.PROCESSDIFFVIDEO, (code) => { });
     });
 
-    this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+    this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE);
 
     this.intervals.sleepCapture = setInterval(() => {
       if (!this.isSeeping || !this.isReady || !this.hardwareConf.CAPTURESENVEILLE)
@@ -201,21 +200,22 @@ class VideoDiffusion extends AbstractPlugin {
       if (!this.isReady || this.lastTimestamp === null)
         return;
 
-      let latency = Date.now() - this.lastTimestamp;
+      let now = Date.now()
+      let latency = now - this.lastTimestamp;
 
-      if (this._isLowLantencyMode() && latency < this.LATENCYENDALARM && Date.now() - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
+      if (this._isLowLantencyMode() && latency < this.LATENCYENDALARM && now - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
         this.log("Latency " + latency + " ms, go back to original config");
-        this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE, (code) => { });
+        this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE);
         this.startAlarmTimestamp = null;
       } 
       else if (!this._isLowLantencyMode() && latency > this.LATENCYSTARTALARM) {
         if (this.lagStartTimestamp === null) {
-          this.lagStartTimestamp = Date.now();
+          this.lagStartTimestamp = now;
         }
-        else if (Date.now() - this.lagStartTimestamp > this.MIN_DURATION_OF_LAG_FOR_ALARM) {
+        else if (now - this.lagStartTimestamp > this.MIN_DURATION_OF_LAG_FOR_ALARM) {
           this.log("Latency " + latency + " ms, go to low lentency config");
-          this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE, (code) => { });
-          this.startAlarmTimestamp = Date.now();
+          this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE);
+          this.startAlarmTimestamp = now;
         }
       }
       else {
@@ -236,15 +236,8 @@ class VideoDiffusion extends AbstractPlugin {
       .replace(new RegExp("BITRATE", "g"), this.confVideo.BITRATE)
       .replace("ROTATION", this.confVideo.ROTATION);
 
-    let brightness;
-    let contrast;
-    if (this.boostVideo) {
-      brightness = this.confVideo.BOOSTVIDEOLUMINOSITE;
-      contrast = this.confVideo.BOOSTVIDEOCONTRASTE;
-    } else {
-      brightness = this.confVideo.LUMINOSITE;
-      contrast = this.confVideo.CONTRASTE;
-    }
+    let brightness = this.boostVideo ? this.confVideo.BOOSTVIDEOLUMINOSITE : this.confVideo.LUMINOSITE;
+    let contrast = this.boostVideo ? this.confVideo.BOOSTVIDEOCONTRASTE : this.confVideo.CONTRASTE;
 
     this._exec("v4l2-ctl", this.V4L2 + " -v width=" + this.confVideo.WIDTH +
       ",height=" + this.confVideo.HEIGHT +
