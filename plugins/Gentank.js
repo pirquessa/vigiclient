@@ -11,6 +11,7 @@ class Gentank extends AbstractPlugin {
       read: 30000,
       write: 50
     };
+    this.busyWithI2C = false;
 
     // Attributes
     this.i2c = null;
@@ -60,20 +61,24 @@ class Gentank extends AbstractPlugin {
     this.log('Wake up !');
 
     // Read from slave
-    this.intervals.read = setInterval(this._readBatLvl.bind(this), this.timers.read);
+    this.intervals.read = setInterval(this._whenAvailable.bind(this, this._readBatLvl.bind(this), 300), this.timers.read);
 
     // Write to slave
     this.intervals.write = setInterval(() => {
-      if (this.lastTxToForward !== null && this.lastTxForwarded !== this.lastTxToForward) {
+      if (!this.busyWithI2C && this.lastTxToForward !== null && this.lastTxForwarded !== this.lastTxToForward) {
+        this.busyWithI2C = true;
         this.lastTxForwarded = this.lastTxToForward;
         this.i2c.promisifiedBus().i2cWrite(this.arduinoAddress, this.lastTxToForward.length, this.lastTxToForward).catch((err) => {
           this.error('Fail to write data to slave: ' + err);
+        }).finally(() => {
+          this.busyWithI2C = false;
         });
       }
     }, this.timers.write);
   }
 
   _readBatLvl() {
+    this.busyWithI2C = true;
     var buff = Buffer.alloc(4);
     this.i2c.promisifiedBus().i2cRead(this.arduinoAddress, buff.length, buff).then((result) => {
       this.bat[0] = result.buffer.readUInt16LE();
@@ -82,7 +87,18 @@ class Gentank extends AbstractPlugin {
       this.log('1 Read bat[0]: ' + this.bat[0] + ', bat[1]: ' + this.bat[1]);
     }).catch(function(err) {
       this.error('Fail to read data from slave: ' + err);
+    }).finally(() => {
+      this.busyWithI2C = false;
     });
+  }
+
+  _whenAvailable(cb, waitTime) {
+    if (!this.busyWithI2C) {
+      cb();
+    }
+    else {
+      setTimeout(cb, waitTime);
+    }
   }
 }
 
