@@ -147,12 +147,7 @@ let pca9685Driver = [];
 let prevCpus = OS.cpus();
 let nbCpus = prevCpus.length;
 
-let voltage = 0;
-let battery = 0;
-let cpuLoad = 0;
-let socTemp = 0;
-let link = 0;
-let rssi = 0;
+let environment = new EnvState();
 
 if(typeof CONF.CMDDIFFUSION === "undefined")
  CONF.CMDDIFFUSION = CMDDIFFUSION;
@@ -538,7 +533,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
          if(serveurCourant && serveur != serveurCourant)
           return;
 
-         setRxVals();
+         environment.apply(rx);
          sockets[serveur].emit("serveurrobotrx", {
           timestamp: Date.now(),
           data: rx.arrayBuffer
@@ -689,7 +684,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
     rx.vitesses[i] = tx.vitesses[i];
    rx.interrupteurs[0] = tx.interrupteurs[0];
 
-   setRxVals();
+   environment.apply(rx);
    sockets[serveur].emit("serveurrobotrx", {
     timestamp: now,
     data: rx.arrayBuffer
@@ -897,7 +892,7 @@ setInterval(function() {
  }
  prevCpus = currCpus;
 
- cpuLoad = Math.trunc(100 * charges / (charges + idles));
+ environment.setLoad(Math.trunc(100 * charges / (charges + idles)));
 }, CPURATE);
 
 setInterval(function() {
@@ -905,7 +900,7 @@ setInterval(function() {
   return;
 
  FS.readFile(FICHIERTEMPERATURE, function(err, data) {
-  socTemp = data / 1000;
+  environment.setTemperature(data / 1000);
  });
 }, TEMPERATURERATE);
 
@@ -919,8 +914,7 @@ setInterval(function() {
   ligne = ligne.split(/\s+/);
 
   if(ligne[1] == INTERFACEWIFI + ":") {
-   link = ligne[3];
-   rssi = ligne[4];
+   environment.setWifiQuality(ligne[3], ligne[4]);
   }
  });
 }, WIFIRATE);
@@ -935,9 +929,8 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(CW2015ADDRESS, 0x02, function(err, microVolts305) {
-    voltage = swapWord(microVolts305) * 305 / 1000000;
     i2c.readWord(CW2015ADDRESS, 0x04, function(err, pour25600) {
-     battery = swapWord(pour25600) / 256;
+     environment.setBattery(swapWord(microVolts305) * 305 / 1000000, swapWord(pour25600) / 256);
     });
    });
   }, GAUGERATE);
@@ -948,9 +941,8 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(MAX17043ADDRESS, 0x02, function(err, volts12800) {
-    voltage = swapWord(volts12800) / 12800;
     i2c.readWord(MAX17043ADDRESS, 0x04, function(err, pour25600) {
-     battery = swapWord(pour25600) / 256;
+     environment.setBattery(swapWord(volts12800) / 12800, swapWord(pour25600) / 256);
     });
    });
   }, GAUGERATE);
@@ -961,29 +953,19 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(BQ27441ADDRESS, 0x04, function(err, milliVolts) {
-    voltage = milliVolts / 1000;
     i2c.readByte(BQ27441ADDRESS, 0x1c, function(err, pourcents) {
-     battery = pourcents;
+     environment.setBattery(milliVolts / 1000, pourcents);
     });
    });
   }, GAUGERATE);
   break;
 }
 
-function setRxVals() {
- rx.setValeur16(0, voltage);
- rx.setValeur16(1, battery);
- rx.setValeur8(0, cpuLoad);
- rx.setValeur8(1, socTemp);
- rx.setValeur8(2, link);
- rx.setValeur8(3, rssi);
-}
-
 setInterval(function() {
  if(up || !init || hard.DEVTELEMETRIE)
   return;
 
- setRxVals();
+ environment.apply(rx);
  CONF.SERVEURS.forEach(function(serveur) {
   sockets[serveur].emit("serveurrobotrx", {
    timestamp: Date.now(),
@@ -1119,3 +1101,41 @@ process.on("uncaughtException", function(err) {
 })
 
 trace("Client prêt");
+
+class EnvState {
+  constructor() {
+    this.voltage = 0;
+    this.battery = 0;
+    this.cpuLoad = 0;
+    this.socTemp = 0;
+    this.link = 0;
+    this.rssi = 0;
+  }
+
+  setBattery(voltage, level) {
+    this.voltage = voltage;
+    this.battery = level;
+  }
+
+  setLoad(load) {
+    this.cpuLoad = load;
+  }
+
+  setTemperature(temp) {
+    this.socTemp = temp;
+  }
+
+  setWifiQuality(link, rssi) {
+    this.link = link;
+    this.rssi = rssi;
+  }
+
+  apply(rx) {
+    rx.setValeur16(0, this.voltage);
+    rx.setValeur16(1, this.battery);
+    rx.setValeur8(0, this.cpuLoad);
+    rx.setValeur8(1, this.socTemp);
+    rx.setValeur8(2, this.link);
+    rx.setValeur8(3, this.rssi);
+  }
+}
