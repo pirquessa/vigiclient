@@ -14,7 +14,7 @@ class TextToSpeech extends AbstractPlugin {
   }
 
   init(config) {
-    this.playbackDevice = config.hard.PLAYBACKDEVICE;
+    this.playbackDevice = config.hardwareConf.PLAYBACKDEVICE;
   }
 
   registerNewSocket(serverSocket) {

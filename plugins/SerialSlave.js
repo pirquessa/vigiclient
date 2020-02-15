@@ -16,7 +16,7 @@ class SerialSlave extends AbstractPlugin {
 
   init(config) {
     this.rx = config.rx;
-    this.hardwareConfig = config.hard;
+    this.hardwareConfig = config.hardwareConf;
     this.environment = config.environment
 
     this.serial = new SP(this.hardwareConfig.DEVROBOT, {

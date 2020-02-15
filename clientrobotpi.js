@@ -310,7 +310,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      i2c: i2c,
      remoteControlConf: conf,
      hardwareConf: hard,
-     hard: hard,
      environment: environment
     }]).then(() => {
      init = true;
