@@ -5,8 +5,9 @@ class Gentank extends AbstractPlugin {
     super('Gentank');
 
     // Config constants
+    this.batMin = 9.9;
+    this.batMax = 12.6;
     this.arduinoAddress = 0x12;
-    this.bat = [0, 0];
     this.timers = {
       read: 30000,
       write: 50
@@ -15,6 +16,7 @@ class Gentank extends AbstractPlugin {
 
     // Attributes
     this.i2c = null;
+    this.environment = null;
     this.intervals = {
       read: null,
       write: null
@@ -25,6 +27,7 @@ class Gentank extends AbstractPlugin {
 
   init(config) {
     this.i2c = config.i2c;
+    this.environment = config.environment
 
     this._readBatLvl();
 
@@ -37,11 +40,6 @@ class Gentank extends AbstractPlugin {
     }
 
     this.lastTxToForward = tx;
-  }
-
-  updateRx(rx) {
-    rx.valeursUint16[0] = this.bat[0];
-    rx.valeursUint16[1] = this.bat[1];
   }
 
   sleep() {
@@ -81,10 +79,13 @@ class Gentank extends AbstractPlugin {
     this.busyWithI2C = true;
     var buff = Buffer.alloc(4);
     this.i2c.promisifiedBus().i2cRead(this.arduinoAddress, buff.length, buff).then((result) => {
-      this.bat[0] = result.buffer.readUInt16LE();
-      this.bat[1] = result.buffer.readUInt16LE(2);
-      
-      this.log('1 Read bat[0]: ' + this.bat[0] + ', bat[1]: ' + this.bat[1]);
+      let voltage = result.buffer.readUInt16LE() * (this.batMax - this.batMin) / 65535 + this.batMin;
+      let percent = result.buffer.readUInt16LE(2) * 100 / 65535;
+
+      this.environment.setBattery(voltage, percent);
+
+      // this.log('Bat V: ' + this.environment.voltage);
+      // this.log('Bat %: ' + this.environment.battery);
     }).catch(function(err) {
       this.error('Fail to read data from slave: ' + err);
     }).finally(() => {

@@ -24,9 +24,6 @@ class AbstractPlugin extends EventEmitter {
   // Called during init to setup event handler on server socket
   registerNewSocket(serverSocket) {}
 
-  // Called before sending "serveurrobotrx" to server
-  updateRx(rx) {}
-
   // Called when server send a txt message
   forwardTxText(txt) {}
   

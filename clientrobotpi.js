@@ -92,7 +92,6 @@ let pca9685Driver = [];
 let prevCpus = OS.cpus();
 let nbCpus = prevCpus.length;
 
-
 let environment = new EnvState();
 
 CONF.SERVEURS.forEach(function(serveur) {
@@ -417,7 +416,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    rx.interrupteurs[0] = tx.interrupteurs[0];
 
    environment.apply(rx);
-   PLUGINS.apply('updateRx', [rx]);
    sockets[serveur].emit("serveurrobotrx", {
     timestamp: now,
     data: rx.arrayBuffer
@@ -684,7 +682,6 @@ setInterval(function() {
   return;
 
  environment.apply(rx);
- PLUGINS.apply('updateRx', [rx]);
  CONF.SERVEURS.forEach(function(serveur) {
   sockets[serveur].emit("serveurrobotrx", {
    timestamp: Date.now(),

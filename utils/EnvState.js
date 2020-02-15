@@ -31,4 +31,4 @@ class EnvState {
   }
 }
 
-exports.EnvState = EnvState;
+module.exports = EnvState;
