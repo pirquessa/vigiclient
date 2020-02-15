@@ -31,7 +31,7 @@ class Gentank extends AbstractPlugin {
 
     this._readBatLvl();
 
-    return super.init(config);
+    return Promise.resolve();
   }
 
   forwardToSlave(type, tx) {

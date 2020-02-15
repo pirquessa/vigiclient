@@ -13,7 +13,7 @@ class TextToSpeech extends AbstractPlugin {
     this.playbackDevice = null;
   }
 
-  init(config) {
+  updateConfiguration(config) {
     this.playbackDevice = config.hardwareConf.PLAYBACKDEVICE;
   }
 
@@ -32,7 +32,7 @@ class TextToSpeech extends AbstractPlugin {
         }
 
         UTILS.exec("eSpeak", "/usr/bin/espeak -v fr -f /tmp/tts.txt --stdout > /tmp/tts.wav", (code) => {
-          UTILS.exec("Aplay", "/usr/bin/aplay -D plughw:" + this.playbackDevice + " /tmp/tts.wav", (code) => {});
+          UTILS.exec("Aplay", "/usr/bin/aplay -D plughw:" + this.playbackDevice + " /tmp/tts.wav");
         });
       });
     });

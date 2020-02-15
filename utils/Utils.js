@@ -26,14 +26,18 @@ module.exports = {
       let elapsed = Date.now() - execTime;
 
       LOGGER.both("SubProcess " + name + " stops after " + elapsed + " milliseconds with exit code: " + code);
-      endCallback(code);
+      if (endCallback !== undefined) {
+        endCallback(code);
+      }
     });
   },
 
   sigterm: function (name, process, endCallback) {
     LOGGER.both("Send signal SIGTERM to process " + name);
     let processkill = EXEC("/usr/bin/pkill -15 -f ^" + process);
-    processkill.on("close", endCallback);
+    if (endCallback !== undefined) {
+      processkill.on("close", endCallback);
+    }
   },
 
   traces: function (id, messages) {

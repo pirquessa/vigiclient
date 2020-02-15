@@ -15,6 +15,8 @@ class AbstractPlugin extends EventEmitter {
 
   // Called on init, the first time server send "clientsrobotconf"
   init(config) {
+    this.updateConfiguration(config);
+
     return Promise.resolve();
   }
 

@@ -16,12 +16,10 @@ class Safety extends AbstractPlugin {
     this.lastTimestamp = 0;
   }
 
-  init(config) {
+  updateConfiguration(config) {
     this.remoteControlConf = config.remoteControlConf;
     this.hardwareConf = config.hardwareConf;
     this.tx = config.tx;
-
-    return super.init(config);
   }
 
   registerNewSocket(serverSocket) {
@@ -31,15 +29,11 @@ class Safety extends AbstractPlugin {
   }
 
   sleep() {
-    super.sleep();
-
     clearInterval(this.interval);
     this.interval = null;
   }
 
   wakeUp() {
-    super.wakeUp();
-
     this.interval = setInterval(() => {
       let latence = Date.now() - this.lastTimestamp;
       if (latence > this.LATENCEDEBUTALARME) {

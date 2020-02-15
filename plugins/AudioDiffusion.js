@@ -52,6 +52,8 @@ class AudioDiffusion extends AbstractPlugin {
       });
 
     }).listen(this.PORTTCPAUDIO);
+
+    return Promise.resolve();
   }
 
   wakeUp() {
@@ -63,7 +65,7 @@ class AudioDiffusion extends AbstractPlugin {
   }
 
   sleep() {
-    UTILS.sigterm("DiffAudio", this.PROCESSDIFFAUDIO, (code) => { });
+    UTILS.sigterm("DiffAudio", this.PROCESSDIFFAUDIO);
   }
 }
 

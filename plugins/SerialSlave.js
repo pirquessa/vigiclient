@@ -15,9 +15,7 @@ class SerialSlave extends AbstractPlugin {
   }
 
   init(config) {
-    this.rx = config.rx;
-    this.hardwareConfig = config.hardwareConf;
-    this.environment = config.environment
+    this.updateConfiguration(config);
 
     this.serial = new SP(this.hardwareConfig.DEVROBOT, {
       baudRate: this.hardwareConfig.DEVDEBIT,
@@ -44,6 +42,12 @@ class SerialSlave extends AbstractPlugin {
         resolve();
       });
     });
+  }
+
+  updateConfiguration(config) {
+    this.rx = config.rx;
+    this.hardwareConfig = config.hardwareConf;
+    this.environment = config.environment;
   }
 
   forwardToSlave(type, tx) {

@@ -12,10 +12,10 @@ class VideoDiffusion extends AbstractPlugin {
 
     // Config constants
     this.MIN_DURATION_OF_ALARM = 3000;
-    this.MIN_DURATION_OF_LAG_FOR_ALARM = 300;
-    this.LATENCYENDALARM = 350;
-    this.LATENCYSTARTALARM = 750;
-    this.BITRATEVIDEOFAIBLE = 100000;
+    this.MIN_DURATION_OF_LAG_FOR_ALARM = 250;
+    this.LATENCY_END_ALARM = 350;
+    this.LATENCY_START_ALARM = 750;
+    this.BITRATE_LOW_LATENCY = 100000;
     this.CAPTURESENVEILLERATE = 60000;
 
     this.SEPARATEURNALU = new Buffer.from([0, 0, 0, 1]);
@@ -77,6 +77,26 @@ class VideoDiffusion extends AbstractPlugin {
     this.currentCameraIndex = config.remoteControlConf.COMMANDES[config.remoteControlConf.DEFAUTCOMMANDE].CAMERA;
     this.confVideo = this.hardwareConf.CAMERAS[this.currentCameraIndex];
 
+    NET.createServer((socket) => {
+      const SPLITTER = new SPLIT(this.SEPARATEURNALU);
+      this.log("The video diffusion process is connected to tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+
+      SPLITTER.on("data", (data) => {
+        this.emit('dataToServer', 'serveurrobotvideo', {
+          timestamp: Date.now(),
+          data: data
+        });
+      }).on("error", (err) => {
+        this.error("Fail to split incoming flow");
+      });
+
+      socket.pipe(SPLITTER);
+
+      socket.on("end", () => {
+        this.log("The video diffusion process is disconnected from tcp://127.0.0.1:" + this.PORTTCPVIDEO);
+      });
+    }).listen(this.PORTTCPVIDEO);
+
     return new Promise((resolve, reject) => {
       setTimeout(() => { // Wait a little bit or one callback will not trigger !
         this._configurationVideo((code) => {
@@ -84,26 +104,6 @@ class VideoDiffusion extends AbstractPlugin {
           resolve();
         });
       }, 100);
-
-      NET.createServer((socket) => {
-        const SPLITTER = new SPLIT(this.SEPARATEURNALU);
-        this.log("The video diffusion process is connected to tcp://127.0.0.1:" + this.PORTTCPVIDEO);
-
-        SPLITTER.on("data", (data) => {
-          this.emit('dataToServer', 'serveurrobotvideo', {
-            timestamp: Date.now(),
-            data: data
-          });
-        }).on("error", (err) => {
-          this.error("Fail to split incoming flow");
-        });
-
-        socket.pipe(SPLITTER);
-
-        socket.on("end", () => {
-          this.log("The video diffusion process is disconnected from tcp://127.0.0.1:" + this.PORTTCPVIDEO);
-        });
-      }).listen(this.PORTTCPVIDEO);
     });
   }
 
@@ -145,7 +145,7 @@ class VideoDiffusion extends AbstractPlugin {
 
       let brightness = this.boostVideo ? this.confVideo.BOOSTVIDEOLUMINOSITE : this.confVideo.LUMINOSITE;
       let contrast = this.boostVideo ? this.confVideo.BOOSTVIDEOCONTRASTE : this.confVideo.CONTRASTE;
-      
+
       this._exec("v4l2-ctl", this.V4L2 + " -c brightness=" + brightness + ",contrast=" + contrast);
     }
   }
@@ -179,7 +179,7 @@ class VideoDiffusion extends AbstractPlugin {
     this.isSeeping = true;
 
     UTILS.sigterm("Diffusion", this.PROCESSDIFFUSION, (code) => {
-      UTILS.sigterm("DiffVideo", this.PROCESSDIFFVIDEO, (code) => { });
+      UTILS.sigterm("DiffVideo", this.PROCESSDIFFVIDEO);
     });
 
     this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE);
@@ -203,18 +203,18 @@ class VideoDiffusion extends AbstractPlugin {
       let now = Date.now()
       let latency = now - this.lastTimestamp;
 
-      if (this._isLowLantencyMode() && latency < this.LATENCYENDALARM && now - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
+      if (this._isLowLantencyMode() && latency < this.LATENCY_END_ALARM && now - this.startAlarmTimestamp > this.MIN_DURATION_OF_ALARM) {
         this.log("Latency " + latency + " ms, go back to original config");
         this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.confVideo.BITRATE);
         this.startAlarmTimestamp = null;
-      } 
-      else if (!this._isLowLantencyMode() && latency > this.LATENCYSTARTALARM) {
+      }
+      else if (!this._isLowLantencyMode() && latency > this.LATENCY_START_ALARM) {
         if (this.lagStartTimestamp === null) {
           this.lagStartTimestamp = now;
         }
         else if (now - this.lagStartTimestamp > this.MIN_DURATION_OF_LAG_FOR_ALARM) {
-          this.log("Latency " + latency + " ms, go to low lentency config");
-          this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATEVIDEOFAIBLE);
+          this.log("Latency " + latency + " ms, go to low latency config");
+          this._exec("v4l2-ctl", this.V4L2 + " -c video_bitrate=" + this.BITRATE_LOW_LATENCY);
           this.startAlarmTimestamp = now;
         }
       }
@@ -317,7 +317,7 @@ class VideoDiffusion extends AbstractPlugin {
       });
     }
   }
-  
+
   _exec(name, cmd, endCallback) {
     this.log("Start subProcess " + name + ": \"" + cmd + "\"");
     let subProcess = EXEC(cmd);
