@@ -10,12 +10,14 @@ class SerialSlave extends AbstractPlugin {
     // Attributes
     this.rx = null;
     this.hardwareConfig = null;
+    this.environment = null;
     this.serial = null;
   }
 
   init(config) {
     this.rx = config.rx;
     this.hardwareConfig = config.hard;
+    this.environment = config.environment
 
     this.serial = new SP(this.hardwareConfig.DEVROBOT, {
       baudRate: this.hardwareConfig.DEVDEBIT,
@@ -30,6 +32,7 @@ class SerialSlave extends AbstractPlugin {
 
           this.serial.on("data", (data) => {
             this.rx.update(data, () => {
+              this.environment.apply(this.rx);
               this.emit('dataToServer', 'serveurrobotrx', {
                 timestamp: Date.now(),
                 data: this.rx.arrayBuffer

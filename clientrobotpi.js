@@ -4,6 +4,7 @@ const CONF = require("/boot/robot.json");
 
 const TRAME = require("./trame.js");
 const LOGGER = require("./utils/Logger.js").init("/var/log/vigiclient.log");
+const EnvState = require("./utils/EnvState");
 
 const PORTROBOTS = 8042;
 
@@ -90,6 +91,9 @@ let pca9685Driver = [];
 
 let prevCpus = OS.cpus();
 let nbCpus = prevCpus.length;
+
+
+let environment = new EnvState();
 
 CONF.SERVEURS.forEach(function(serveur) {
  sockets[serveur] = IO.connect(serveur, {"connect timeout": 1000, transports: ["websocket"], path: "/" + PORTROBOTS + "/socket.io"});
@@ -307,7 +311,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
      i2c: i2c,
      remoteControlConf: conf,
      hardwareConf: hard,
-     hard: hard
+     hard: hard,
+     environment: environment
     }]).then(() => {
      init = true;
     });
@@ -411,8 +416,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
     rx.vitesses[i] = tx.vitesses[i];
    rx.interrupteurs[0] = tx.interrupteurs[0];
 
+   environment.apply(rx);
    PLUGINS.apply('updateRx', [rx]);
-
    sockets[serveur].emit("serveurrobotrx", {
     timestamp: now,
     data: rx.arrayBuffer
@@ -605,7 +610,7 @@ setInterval(function() {
  }
  prevCpus = currCpus;
 
- rx.setValeur8(0, 100 - Math.trunc(100 * idles / (charges + idles)));
+ environment.setLoad(Math.trunc(100 * charges / (charges + idles)));
 }, CPURATE);
 
 setInterval(function() {
@@ -613,7 +618,7 @@ setInterval(function() {
   return;
 
  FS.readFile(FICHIERTEMPERATURE, function(err, data) {
-  rx.setValeur8(1, data / 1000);
+  environment.setTemperature(data / 1000);
  });
 }, TEMPERATURERATE);
 
@@ -627,8 +632,7 @@ setInterval(function() {
   ligne = ligne.split(/\s+/);
 
   if(ligne[1] == INTERFACEWIFI + ":") {
-   rx.setValeur8(2, ligne[3]);
-   rx.setValeur8(3, ligne[4]);
+   environment.setWifiQuality(ligne[3], ligne[4]);
   }
  });
 }, WIFIRATE);
@@ -643,9 +647,8 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(CW2015ADDRESS, 0x02, function(err, microVolts305) {
-    rx.setValeur16(0, swapWord(microVolts305) * 305 / 1000000);
     i2c.readWord(CW2015ADDRESS, 0x04, function(err, pour25600) {
-     rx.setValeur16(1, swapWord(pour25600) / 256);
+     environment.setBattery(swapWord(microVolts305) * 305 / 1000000, swapWord(pour25600) / 256);
     });
    });
   }, GAUGERATE);
@@ -656,9 +659,8 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(MAX17043ADDRESS, 0x02, function(err, volts12800) {
-    rx.setValeur16(0, swapWord(volts12800) / 12800);
     i2c.readWord(MAX17043ADDRESS, 0x04, function(err, pour25600) {
-     rx.setValeur16(1, swapWord(pour25600) / 256);
+     environment.setBattery(swapWord(volts12800) / 12800, swapWord(pour25600) / 256);
     });
    });
   }, GAUGERATE);
@@ -669,9 +671,8 @@ switch(gaugeType) {
    if(!init)
     return;
    i2c.readWord(BQ27441ADDRESS, 0x04, function(err, milliVolts) {
-    rx.setValeur16(0, milliVolts / 1000);
     i2c.readByte(BQ27441ADDRESS, 0x1c, function(err, pourcents) {
-     rx.setValeur16(1, pourcents);
+     environment.setBattery(milliVolts / 1000, pourcents);
     });
    });
   }, GAUGERATE);
@@ -682,9 +683,9 @@ setInterval(function() {
  if(up || !init || hard.DEVTELEMETRIE)
   return;
 
+ environment.apply(rx);
+ PLUGINS.apply('updateRx', [rx]);
  CONF.SERVEURS.forEach(function(serveur) {
-  PLUGINS.apply('updateRx', [rx]);
-
   sockets[serveur].emit("serveurrobotrx", {
    timestamp: Date.now(),
    data: rx.arrayBuffer
