@@ -50,7 +50,7 @@ class SerialSlave extends AbstractPlugin {
     this.environment = config.environment;
   }
 
-  forwardToSlave(type, tx) {
+  forwardTxData(tx) {
     if (this.hardwareConfig.DEVTELECOMMANDE) {
       this.serial.write(tx);
     }

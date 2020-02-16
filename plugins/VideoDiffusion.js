@@ -139,8 +139,8 @@ class VideoDiffusion extends AbstractPlugin {
       this._restart();
     }
 
-    this.boostVideo = this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1;
-    if (this.boostVideo != this.oldBoostVideo) {
+    this.boostVideo = (this.tx.interrupteurs[0] >> this.hardwareConf.INTERRUPTEURBOOSTVIDEO & 1) === 1;
+    if (this.boostVideo !== this.oldBoostVideo) {
       this.oldBoostVideo = this.boostVideo;
 
       let brightness = this.boostVideo ? this.confVideo.BOOSTVIDEOLUMINOSITE : this.confVideo.LUMINOSITE;

@@ -391,7 +391,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   for(let i = 0; i < tx.byteLength; i++)
    tx.bytes[i] = data.data[i];
 
-  PLUGINS.apply('forwardToSlave', ['data', data.data]);
+  PLUGINS.apply('forwardTxData', [data]);
 
   for(let i = 0; i < hard.MOTEURS.length; i++)
    setConsigneMoteur(i, 1);
@@ -403,8 +403,6 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    }
    oldTxInterrupteurs = tx.interrupteurs[0]
   }
-
-  PLUGINS.apply('forwardTxData', [data]);
 
   if(!hard.DEVTELEMETRIE) {
    for(let i = 0; i < conf.TX.POSITIONS.length; i++)

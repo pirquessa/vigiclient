@@ -32,9 +32,6 @@ class AbstractPlugin extends EventEmitter {
   // Called when server send a data message
   forwardTxData(data) {}
 
-  // Called to send data to slave (arduino ?)
-  forwardToSlave(type, tx) {}
-
   // Called when robot need to stop activity
   sleep() { }
 
