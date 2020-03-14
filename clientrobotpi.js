@@ -49,14 +49,7 @@ const RL = require("readline");
 const GPIO = require("pigpio").Gpio;
 const I2C = require("i2c-bus");
 const PCA9685 = require("pca9685");
-const PLUGINS = new (require("./plugins"))([
- "./Safety.js",
- "./VideoDiffusion.js",
- // "./AudioDiffusion.js",
- // "./SerialSlave.js",
- // "./TextToSpeech.js",
- "./Gentank.js"
-]);
+const PLUGINS = new (require("./plugins"))();
 
 const VERSION = Math.trunc(FS.statSync(__filename).mtimeMs);
 const PROCESSTIME = Date.now();
@@ -243,6 +236,8 @@ CONF.SERVEURS.forEach(function(serveur, index) {
    conf = data.conf;
    hard = data.hard;
 
+   PLUGINS.onNewConfig(hard, conf);
+
    tx = new TRAME.Tx(conf.TX);
    rx = new TRAME.Rx(conf.TX, conf.RX);
 
@@ -420,7 +415,7 @@ CONF.SERVEURS.forEach(function(serveur, index) {
   }
  });
 
- PLUGINS.apply('registerNewSocket', [sockets[serveur]]);
+ PLUGINS.onReady(PLUGINS.apply.bind(PLUGINS, 'registerNewSocket', [sockets[serveur]]));
 });
 
 PLUGINS.on('dataToServer', (eventName, data) => {
