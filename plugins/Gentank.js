@@ -118,7 +118,7 @@ class Gentank extends AbstractPlugin {
           this.turret[axis].direction = -1 * this.turret[axis].direction;
         }
 
-        let newPos = parseInt(this.turret[axis].current + this.turret[axis].direction * Math.random() * this.timers.autoLaser);
+        let newPos = parseInt(this.turret[axis].current + this.turret[axis].direction * Math.random() * this.timers.autoLaser * 1.8);
         if (newPos > this.turret[axis].min && newPos < this.turret[axis].max) {
           this.turret[axis].current = newPos;
         }
