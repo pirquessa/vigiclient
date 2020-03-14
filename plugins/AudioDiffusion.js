@@ -57,14 +57,16 @@ class AudioDiffusion extends AbstractPlugin {
   }
 
   wakeUp() {
-    this.log("Start audio diffusion process");
+    this.log("wakeUp => Start audio diffusion process");
 
     UTILS.exec("DiffAudio", this.CMDDIFFAUDIO, (code) => {
-      this.log("Stop of the audio diffusion process");
+      this.log("Audio diffusion process has stopped");
     });
   }
 
   sleep() {
+    this.log("sleep => Stop audio diffusion process");
+
     UTILS.sigterm("DiffAudio", this.PROCESSDIFFAUDIO);
   }
 }
