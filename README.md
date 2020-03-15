@@ -48,4 +48,4 @@ More to come, feel free to contribute !!!
 	* Your plugin class need to extend [AbstractPlugin] (https://github.com/pirquessa/vigiclient/blob/master/utils/AbstractPlugin.js)
 	* Override the method you need
 2. Declare your plugin in the **Configuration matérielle** of your robot, see installation instructions
-3. Restart the client process (Can be done from the UI with icon ![enter image description here](https://www.vigibot.com/ihm/exit.png))
+3. Restart the client process (Can be done from the UI with icon: <img src="https://www.vigibot.com/ihm/exit.png" height="20"/>)
