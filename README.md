@@ -29,6 +29,7 @@ Release names are composed like: X.Y.Z
 	    "AudioDiffusion"
 	  ]`
 4. Use new files:
+	* `cd /usr/local/vigiclient`
 	* Install new dependencies: `npm install`
 	* Restart client: `systemctl restart vigiclient`
 
